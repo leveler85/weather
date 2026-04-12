@@ -1875,6 +1875,8 @@ function render(w,aq,n,e,f,model,w30){
   <div class="main-card">
     <div class="city-name">${f} ${n}</div>
     <div class="city-meta">${e} · ${dateStr} · <span style="color:var(--accent2);font-size:.68rem">${mlabel}</span></div>
+    <!-- 날씨 아이콘 + 설명: 온도 위에 배치 -->
+    <div class="weather-desc" style="margin-bottom:12px">${ico} ${dsc}</div>
     <div class="main-content">
       <div class="temp-display" onclick="toggleUnit()" title="${LANG==='ko'?'클릭하면 °F/°C 전환':'Click to toggle °F/°C'}">
         <div class="temp-big">${dispTemp(c.temperature_2m)}</div>
@@ -1884,9 +1886,6 @@ function render(w,aq,n,e,f,model,w30){
       <div class="feels-block" onclick="toggleUnit()" style="cursor:pointer;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:8px;gap:4px">
         <div style="font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">${t('feels')}</div>
         <div class="feels-val" style="font-size:2.4rem;line-height:1">${dispTemp(c.apparent_temperature)}${dispUnit()}</div>
-      </div>
-      <div class="weather-detail">
-        <div class="weather-desc">${ico} ${dsc}</div>
       </div>
     </div>
   </div>
@@ -2112,7 +2111,7 @@ function render(w,aq,n,e,f,model,w30){
       <div class="card-title">${t('wind')}</div>
       <div class="wind-compass"><div class="wind-arrow" style="transform:rotate(${c.wind_direction_10m||0}deg)"></div></div>
       <div class="wind-stats">
-        <div class="wind-speed">${Math.round(c.wind_speed_10m)}<span class="wind-unit"> km/h</span></div>
+        <div class="wind-speed">${c.wind_speed_10m!=null?Math.round(c.wind_speed_10m):'--'}<span class="wind-unit"> km/h</span></div>
         <div style="font-size:.72rem;color:var(--muted);margin-top:3px">${t('windDir')}: ${wd} (${c.wind_direction_10m||0}°)</div>
       </div>
     </div>
