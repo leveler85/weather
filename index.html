@@ -1481,13 +1481,11 @@ async function loadWeather(la,lo,n,e,f){
   // KMA/JMA: weather_code만 신뢰할 수 있음 → weather_code 전용 요청
   // 수치(기온/바람/기압 등): best_match current로 별도 요청 후 병합
   // 해외(best_match): 한 번에 전부 요청
+  // current: 전 세계 best_match 단일 요청 (KMA/JMA weather_code 신뢰 불가)
+  // 모델 표시는 유지하되, current 데이터는 best_match로 통일
   const isLocalModel = (model === 'kma_seamless' || model === 'jma_seamless');
-  const wURL = isLocalModel
-    ? `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=weather_code&timezone=auto&models=${model}`
-    : `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,precipitation&timezone=auto&models=best_match`;
-  const wNumericalURL = isLocalModel
-    ? `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,precipitation&timezone=auto&models=best_match`
-    : null;
+  const wURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,precipitation&timezone=auto&models=best_match`;
+  const wNumericalURL = null;
   const wForecastURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
     +`&hourly=temperature_2m,apparent_temperature,weather_code,precipitation_probability,precipitation`
     +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,precipitation_sum`
@@ -1504,15 +1502,7 @@ async function loadWeather(la,lo,n,e,f){
     ]);
     if(!wRes.ok) throw new Error(`날씨 API 오류 (HTTP ${wRes.status})`);
     const w=await wRes.json();
-    // KMA/JMA: best_match numerical 데이터를 current에 병합
-    if(isLocalModel && wNumRes && wNumRes.ok){
-      const wNum = await wNumRes.json();
-      if(!wNum.error && wNum.current){
-        // weather_code는 KMA값 유지, 나머지 수치는 best_match로 교체
-        const kmaCode = w.current?.weather_code;
-        w.current = { ...wNum.current, weather_code: kmaCode ?? wNum.current.weather_code };
-      }
-    }
+    // current: best_match 단일 요청이므로 별도 병합 불필요
     // hourly + daily 병합: best_match에서 가져온 예보 데이터를 w에 주입
     if(wForecastRes&&wForecastRes.ok){
       const wf=await wForecastRes.json();
