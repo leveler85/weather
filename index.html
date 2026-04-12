@@ -452,16 +452,18 @@ body.wx-clear   .main-card::before{background:linear-gradient(90deg,transparent,
   .loc-btn{font-size:.72rem;padding:7px 10px}
   .compare-btn{font-size:.72rem;padding:7px 10px}
   .theme-btn{padding:7px 12px;font-size:.88rem}
-  
   .app{padding:12px 10px}
   .header-right{width:100%;justify-content:flex-end}
   .temp-big{font-size:4.2rem}
   .city-name{font-size:1.4rem}
+  /* 메인 카드 모바일: 온도+상세 세로 스택 */
+  .main-content{flex-direction:column;gap:16px}
+  .temp-display{align-self:flex-start}
+  .weather-detail{width:100%;min-width:0}
   /* 브리핑 */
   .brief-card{padding:14px}
   .brief-label{font-size:.6rem}
   .brief-text{font-size:.82rem}
-  /* 최고/최저 span inline-flex → wrap */
   .brief-text span[style*="inline-flex"]{flex-wrap:wrap;gap:10px}
   /* AQI 레벨 스트립 글자 */
   .aqi-level-name{font-size:.6rem}
@@ -473,11 +475,12 @@ body.wx-clear   .main-card::before{background:linear-gradient(90deg,transparent,
   /* 카드 */
   .card{padding:16px}
   .card-title{font-size:.6rem}
-  /* 시간별 */
   .hour-card{min-width:52px;padding:10px 6px}
   .hour-temp{font-size:.82rem}
-  /* 7일 */
   .day-item{font-size:.78rem}
+  /* 음식 추천 카드 */
+  .food-cards{grid-template-columns:1fr!important}
+  .food-card-inner{flex-direction:column!important;gap:12px!important}
 }
 /* ── 옷차림 비주얼 (심플) ── */
 .outfit-card{display:block}
@@ -754,6 +757,50 @@ body.light-mode .fav-chip{background:#fff;border-color:rgba(0,0,0,0.1);color:#1a
   .pm-cards{grid-template-columns:1fr}
   .pm-card-value{font-size:1.6rem}
 }
+
+/* ── 음식 추천 카드 ── */
+.food-rec-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:16px;padding:22px;margin-bottom:20px;
+  animation:fadeUp .5s ease;
+}
+.food-rec-header{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.food-rec-title{font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.food-rec-weather-tag{
+  font-size:.68rem;padding:3px 10px;border-radius:20px;
+  background:rgba(79,156,249,.12);border:1px solid rgba(79,156,249,.25);
+  color:var(--accent2);margin-left:auto;
+}
+.food-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.food-card{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:14px;padding:16px;cursor:default;
+  transition:transform .2s,border-color .2s;position:relative;overflow:hidden;
+}
+.food-card:hover{transform:translateY(-2px);border-color:rgba(79,156,249,.3)}
+.food-card-meal{
+  font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:6px;font-weight:600;
+}
+.food-card-inner{display:flex;align-items:flex-start;gap:14px}
+.food-emoji{font-size:2.4rem;line-height:1;flex-shrink:0;
+  filter:drop-shadow(0 2px 8px rgba(0,0,0,.3));
+  animation:outfitPop .4s cubic-bezier(.34,1.56,.64,1);
+}
+.food-info{flex:1;min-width:0}
+.food-name{font-family:'DM Serif Display',serif;font-size:1.05rem;margin-bottom:4px;line-height:1.2}
+.food-reason{font-size:.72rem;color:var(--muted);line-height:1.6}
+.food-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.food-tag{
+  font-size:.62rem;padding:2px 8px;border-radius:10px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);
+  color:var(--text);
+}
+.food-card-accent{
+  position:absolute;top:0;left:0;right:0;height:2px;
+  opacity:.6;
+}
+@media(max-width:600px){.food-cards{grid-template-columns:1fr}}
 </style>
 </head>
 <body class="wx-cloudy">
@@ -1384,8 +1431,6 @@ async function loadWeather(la,lo,n,e,f){
 
   // current: 선택 모델 (KMA/JMA 우선, 현재 날씨 정확도 높음)
   // daily + hourly: best_match 고정 (KMA/JMA는 daily/hourly temperature 값을 null로 반환하는 문제)
-  // ※ uv_index current 제거 (KMA 미지원) → best_match hourly에서 보완
-  // ※ &t= 파라미터 제거 (open-meteo API strict 모드 대응)
   const wURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
     +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,precipitation`
     +`&timezone=auto&models=${model}`;
@@ -1409,12 +1454,9 @@ async function loadWeather(la,lo,n,e,f){
       if(!wf.error){
         if(wf.hourly) w.hourly=wf.hourly;
         if(wf.daily)  w.daily=wf.daily;
-
-        // ── KMA/JMA current null 보완 ──
-        // KMA는 relative_humidity_2m, precipitation, uv_index 등이 current에서
-        // null 또는 0으로 오는 경우가 있음 → best_match current로 폴백
+        // KMA/JMA current null 보완: 일부 변수가 null/0으로 오는 경우 best_match로 폴백
         if(w.current){
-          // uv_index: hourly에서 가져오기
+          // uv_index: best_match hourly에서 추출
           if(w.current.uv_index==null){
             const uvNow=new Date(); let uvIdx=0, uvDiff=Infinity;
             (wf.hourly?.time||[]).forEach((ts2,i)=>{
@@ -1424,31 +1466,27 @@ async function loadWeather(la,lo,n,e,f){
             });
             w.current.uv_index = wf.hourly?.uv_index?.[uvIdx] ?? null;
           }
-
-          // humidity, precipitation, temperature가 null이면 best_match current로 보완
-          const needsHumidity = w.current.relative_humidity_2m == null;
-          const needsPrecip   = w.current.precipitation == null;
-          const needsTemp     = w.current.temperature_2m == null || w.current.temperature_2m === 0;
-          const needsApparent = w.current.apparent_temperature == null;
-
-          if(needsHumidity || needsPrecip || needsTemp || needsApparent){
-            try {
+          // humidity/precipitation/temperature null → best_match current로 보완
+          const needsH = w.current.relative_humidity_2m == null;
+          const needsP = w.current.precipitation == null;
+          const needsT = w.current.temperature_2m == null || w.current.temperature_2m === 0;
+          const needsA = w.current.apparent_temperature == null;
+          if(needsH || needsP || needsT || needsA){
+            try{
               const bRes = await fetch(
                 `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
                 +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation`
-                +`&timezone=auto&models=best_match`,
-                {cache:'no-store'}
-              );
+                +`&timezone=auto&models=best_match`,{cache:'no-store'});
               if(bRes.ok){
-                const bw = await bRes.json();
-                if(!bw.error && bw.current){
-                  if(needsTemp)     w.current.temperature_2m      = bw.current.temperature_2m      ?? w.current.temperature_2m;
-                  if(needsApparent) w.current.apparent_temperature = bw.current.apparent_temperature ?? w.current.apparent_temperature;
-                  if(needsHumidity) w.current.relative_humidity_2m = bw.current.relative_humidity_2m ?? null;
-                  if(needsPrecip)   w.current.precipitation        = bw.current.precipitation        ?? 0;
+                const bw=await bRes.json();
+                if(!bw.error&&bw.current){
+                  if(needsT) w.current.temperature_2m     = bw.current.temperature_2m     ?? w.current.temperature_2m;
+                  if(needsA) w.current.apparent_temperature= bw.current.apparent_temperature?? w.current.apparent_temperature;
+                  if(needsH) w.current.relative_humidity_2m= bw.current.relative_humidity_2m?? null;
+                  if(needsP) w.current.precipitation       = bw.current.precipitation       ?? 0;
                 }
               }
-            } catch(bErr){ console.warn('best_match current 보완 실패:', bErr); }
+            }catch(bErr){console.warn('best_match current 보완 실패:',bErr);}
           }
         }
       }
@@ -1858,6 +1896,9 @@ function render(w,aq,n,e,f,model,w30){
       </div>
     </div>
   </div>
+
+  <!-- 음식 추천 -->
+  ${renderFoodSection(c.temperature_2m, c.weather_code, c.relative_humidity_2m, now)}
 
   ${pmCardHTML}
   <!-- 시간별 예보 -->
@@ -2686,6 +2727,101 @@ function drawPmChart(canvasId, aqHourly, now){
     ctx.fillText(hd.getHours()+'시', x, PAD.top+cH+16);
   }
 }
+
+// ══════════════════════════════════════════════════════════
+// 날씨별 음식 추천 엔진
+// ══════════════════════════════════════════════════════════
+function getWeatherFood(temp, code, humidity, now) {
+  const hour = now.getHours();
+  const isMeal = hour >= 10 && hour < 15 ? 'lunch' : hour >= 17 && hour < 22 ? 'dinner' : null;
+
+  const isRain   = (code>=51&&code<=82)||code>=95;
+  const isSnow   = (code>=71&&code<=77)||(code>=85&&code<=86);
+  const isClear  = code<=1;
+  const isHot    = temp >= 28;
+  const isWarm   = temp >= 20 && temp < 28;
+  const isCool   = temp >= 10 && temp < 20;
+  const isCold   = temp < 10;
+  const isHumid  = humidity != null && humidity >= 75;
+  const isKo     = LANG === 'ko';
+
+  // 날씨 상황 태그
+  let weatherTag = '';
+  if(isSnow)  weatherTag = isKo?'❄️ 눈 오는 날':'❄️ Snowy Day';
+  else if(isRain) weatherTag = isKo?'🌧️ 비 오는 날':'🌧️ Rainy Day';
+  else if(isHot && isClear) weatherTag = isKo?'☀️ 무더운 날':'☀️ Hot & Sunny';
+  else if(isWarm && isClear) weatherTag = isKo?'🌤️ 맑고 포근한 날':'🌤️ Warm & Clear';
+  else if(isCool) weatherTag = isKo?'🍂 선선한 날':'🍂 Cool Weather';
+  else if(isCold) weatherTag = isKo?'🥶 추운 날':'🥶 Cold Day';
+  else weatherTag = isKo?'⛅ 흐린 날':'⛅ Cloudy Day';
+
+  // 음식 DB (한/영)
+  // format: { emoji, ko:{name,reason,tags}, en:{name,reason,tags}, accentColor }
+  const DB = {
+    rain_lunch:    {emoji:'🍜', ko:{name:'칼국수 / 수제비',reason:'비 오는 날엔 따뜻한 국물이 최고. 쫄깃한 면발이 몸을 녹여줍니다.',tags:['따뜻함','국물','한식']}, en:{name:'Udon / Noodle Soup',reason:'Warm broth is perfect for rainy days. Comforting and filling.',tags:['warm','soup','comfort']}, accent:'rgba(96,165,250,'},
+    rain_dinner:   {emoji:'🍲', ko:{name:'부대찌개 / 된장찌개',reason:'빗소리 들으며 보글보글 끓는 찌개, 소주 한 잔과 함께.',tags:['찌개','얼큰','한식']}, en:{name:'Korean Stew (Jjigae)',reason:'Bubbling hot stew pairs perfectly with the rain outside.',tags:['stew','hot','savory']}, accent:'rgba(239,68,68,'},
+    snow_lunch:    {emoji:'🥟', ko:{name:'만두 / 손만두국',reason:'눈 오는 날엔 따뜻한 만두국 한 그릇. 손이 녹아요.',tags:['따뜻함','국물','분식']}, en:{name:'Dumplings / Mandu Soup',reason:'Hot dumpling soup warms you up on a snowy day.',tags:['warm','soup','dumplings']}, accent:'rgba(186,230,253,'},
+    snow_dinner:   {emoji:'🍖', ko:{name:'삼겹살 / 돼지갈비',reason:'눈 내리는 밤, 뜨거운 불판에 구워먹는 고기. 소주 필수.',tags:['고기','불판','한식']}, en:{name:'Korean BBQ Pork',reason:'Grilled meat on a cold snowy night — ultimate comfort.',tags:['BBQ','pork','grill']}, accent:'rgba(251,191,36,'},
+    hot_lunch:     {emoji:'🍱', ko:{name:'냉면 / 콩국수',reason:'무더운 날엔 시원한 냉면 한 그릇. 육수가 땀을 식혀줍니다.',tags:['시원함','냉면','여름']}, en:{name:'Cold Noodles / Naengmyeon',reason:'Chilled noodles in cold broth — the ultimate summer meal.',tags:['cold','noodles','refreshing']}, accent:'rgba(52,211,153,'},
+    hot_dinner:    {emoji:'🐟', ko:{name:'회 / 해산물 요리',reason:'더운 날 저녁엔 시원한 회나 해산물 요리가 입맛을 살려줍니다.',tags:['시원함','해산물','저녁']}, en:{name:'Sashimi / Seafood',reason:'Fresh seafood on a hot evening — light and refreshing.',tags:['fresh','seafood','light']}, accent:'rgba(125,211,252,'},
+    warm_lunch:    {emoji:'🥗', ko:{name:'샐러드 / 비빔밥',reason:'활동하기 좋은 날씨! 가볍고 건강한 한 끼로 에너지를 채우세요.',tags:['건강','가벼움','활력']}, en:{name:'Bibimbap / Salad Bowl',reason:'Perfect weather to eat light and healthy. Stay energized!',tags:['healthy','light','fresh']}, accent:'rgba(52,211,153,'},
+    warm_dinner:   {emoji:'🍕', ko:{name:'파스타 / 피자',reason:'날씨 좋은 날 저녁엔 여유롭게 이탈리안 한 끼.',tags:['서양식','여유','저녁']}, en:{name:'Pasta / Pizza',reason:'A relaxed Italian dinner for a pleasant evening.',tags:['Italian','casual','dinner']}, accent:'rgba(249,115,22,'},
+    cool_lunch:    {emoji:'🍜', ko:{name:'짬뽕 / 짜장면',reason:'선선한 날씨에 얼큰한 짬뽕이나 짜장면 한 그릇.',tags:['중식','얼큰','든든']}, en:{name:'Jjamppong / Noodles',reason:'Spicy noodle soup for a cool autumn day.',tags:['spicy','noodles','warm']}, accent:'rgba(239,68,68,'},
+    cool_dinner:   {emoji:'🥩', ko:{name:'스테이크 / 한우 구이',reason:'선선한 저녁, 좋은 고기 한 점으로 마무리.',tags:['고기','저녁','특별']}, en:{name:'Steak / Grilled Beef',reason:'End a cool evening with a perfectly grilled steak.',tags:['beef','grill','dinner']}, accent:'rgba(251,191,36,'},
+    cold_lunch:    {emoji:'🍛', ko:{name:'순대국밥 / 설렁탕',reason:'추운 날 점심엔 뜨거운 국밥 한 그릇으로 몸을 녹여요.',tags:['국밥','따뜻함','든든']}, en:{name:'Korean Bone Broth Soup',reason:'Piping hot broth soup to warm you up on a cold day.',tags:['hot soup','warming','hearty']}, accent:'rgba(251,191,36,'},
+    cold_dinner:   {emoji:'🍲', ko:{name:'청국장 / 김치찌개',reason:'칼바람 부는 추운 밤, 보글보글 청국장 한 냄비.',tags:['찌개','발효','한식']}, en:{name:'Kimchi Jjigae / Hot Pot',reason:'A bubbling hot pot for a freezing cold night.',tags:['stew','Korean','warming']}, accent:'rgba(96,165,250,'},
+  };
+
+  // 날씨 조건으로 카테고리 결정
+  function getKey(meal) {
+    if(isSnow)  return `snow_${meal}`;
+    if(isRain)  return `rain_${meal}`;
+    if(isHot)   return `hot_${meal}`;
+    if(isWarm)  return `warm_${meal}`;
+    if(isCool)  return `cool_${meal}`;
+    return `cold_${meal}`;
+  }
+
+  const lunchData  = DB[getKey('lunch')];
+  const dinnerData = DB[getKey('dinner')];
+
+  function makeCard(data, mealType) {
+    const mealLabel = isKo ? (mealType==='lunch'?'🍽️ 점심 추천':'🌙 저녁 추천') : (mealType==='lunch'?'🍽️ Lunch Pick':'🌙 Dinner Pick');
+    const d = isKo ? data.ko : data.en;
+    const tags = d.tags.map(t=>`<span class="food-tag">${t}</span>`).join('');
+    const isHighlight = (isMeal === mealType);
+    const borderStyle = isHighlight ? `border-color:${data.accent}0.5);box-shadow:0 0 16px ${data.accent}0.1)` : '';
+    return `<div class="food-card" style="${borderStyle}">
+      <div class="food-card-accent" style="background:linear-gradient(90deg,${data.accent}0.7),${data.accent}0.1))"></div>
+      <div class="food-card-meal">${mealLabel}${isHighlight?' <span style="color:var(--accent2);font-size:.6rem">← 지금 식사 시간!</span>':''}</div>
+      <div class="food-card-inner">
+        <div class="food-emoji">${data.emoji}</div>
+        <div class="food-info">
+          <div class="food-name">${d.name}</div>
+          <div class="food-reason">${d.reason}</div>
+          <div class="food-tags">${tags}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  const cards = makeCard(lunchData,'lunch') + makeCard(dinnerData,'dinner');
+
+  return { cards, weatherTag };
+}
+
+function renderFoodSection(temp, code, humidity, now) {
+  const { cards, weatherTag } = getWeatherFood(temp, code, humidity, now);
+  const isKo = LANG === 'ko';
+  return `<div class="food-rec-card">
+    <div class="food-rec-header">
+      <div class="food-rec-title">🍴 ${isKo?'오늘의 날씨별 식사 추천':'Weather-Based Food Picks'}</div>
+      <div class="food-rec-weather-tag">${weatherTag}</div>
+    </div>
+    <div class="food-cards">${cards}</div>
+  </div>`;
+}
+
 </script>
 </body>
 </html>
