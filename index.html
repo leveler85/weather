@@ -240,6 +240,9 @@ body.wx-clear   .main-card::before{background:linear-gradient(90deg,transparent,
 .detail-label{color:var(--muted);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase}
 .detail-val{font-size:.85rem}
 .feels-val{font-size:1.15rem;font-family:'DM Serif Display',serif;color:var(--accent2);font-weight:400;letter-spacing:.02em}
+/* 체감온도: 다크모드=노란색, 라이트모드=파란색 */
+body:not(.light-mode) .feels-val{color:#fbbf24;text-shadow:0 0 12px rgba(251,191,36,.35)}
+body.light-mode .feels-val{color:#2563eb;text-shadow:none}
 
 /* ── OUTFIT CARD ── */
 .outfit-card{
@@ -463,6 +466,8 @@ body.wx-clear   .main-card::before{background:linear-gradient(90deg,transparent,
   /* 메인 카드 모바일: 온도+상세 세로 스택 */
   .main-content{flex-direction:column;gap:16px}
   .temp-display{align-self:flex-start}
+  .feels-block{align-self:flex-start;padding-bottom:0!important}
+  .feels-block .feels-val{font-size:1.8rem!important}
   .weather-detail{width:100%;min-width:0}
   /* 브리핑 */
   .brief-card{padding:14px}
@@ -1875,20 +1880,13 @@ function render(w,aq,n,e,f,model,w30){
         <div class="temp-big">${dispTemp(c.temperature_2m)}</div>
         <div class="temp-unit">${dispUnit()}</div>
       </div>
+      <!-- 체감온도: 온도 바로 옆, 크고 색상 강조 -->
+      <div class="feels-block" onclick="toggleUnit()" style="cursor:pointer;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:8px;gap:4px">
+        <div style="font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">${t('feels')}</div>
+        <div class="feels-val" style="font-size:2.4rem;line-height:1">${dispTemp(c.apparent_temperature)}${dispUnit()}</div>
+      </div>
       <div class="weather-detail">
         <div class="weather-desc">${ico} ${dsc}</div>
-        <div class="detail-grid">
-          <div class="detail-item"><span class="detail-label">${t('feels')}</span><span class="detail-val feels-val">${dispTemp(c.apparent_temperature)}${dispUnit()}</span></div>
-          <div class="detail-item"><span class="detail-label">${t('humidity')}</span><span class="detail-val">${c.relative_humidity_2m}%</span></div>
-
-          <div class="detail-item"><span class="detail-label">${t('precip')}</span><span class="detail-val">${(()=>{
-          const todaySum = d?.precipitation_sum?.[0];
-          const cur = c.precipitation;
-          if(todaySum!=null) return todaySum.toFixed(1)+'mm';
-          if(cur!=null) return cur+'mm';
-          return '--';
-        })()}</span></div>
-        </div>
       </div>
     </div>
   </div>
@@ -2645,24 +2643,31 @@ function updateAlertBanner(w, aq){
   // 내일 강수 확률 ≥ 50%
   const tmrPP = d?.precipitation_probability_max?.[1] ?? null;
   if(tmrPP != null && tmrPP >= 50)
-    badges.push(`<span class="alert-badge rain">🌧 ${isKo?'내일 비':'Rain tmr'} ${tmrPP}%</span>`);
+    badges.push(`<span class="alert-badge rain">🌧 ${isKo?'비 예보! 내일 강수확률 '+tmrPP+'%':'Rain tmr '+tmrPP+'%'}</span>`);
+
+  // 오늘 강수량 ≥ 5mm
+  const todayRain = d?.precipitation_sum?.[0] ?? null;
+  if(todayRain != null && todayRain >= 5)
+    badges.push(`<span class="alert-badge rain">☔ ${isKo?'강수량 많음! 오늘 '+todayRain.toFixed(1)+'mm':'Rain today '+todayRain.toFixed(1)+'mm'}</span>`);
 
   // 현재 기온 ≥ 33
   if((c?.temperature_2m||0) >= 33)
-    badges.push(`<span class="alert-badge heat">🔥 ${isKo?'폭염 주의':'Heat Warning'}</span>`);
+    badges.push(`<span class="alert-badge heat">🔥 ${isKo?'폭염 주의! 현재 '+Math.round(c.temperature_2m)+'°C':'Heat Warning '+Math.round(c.temperature_2m)+'°C'}</span>`);
 
   // 현재 기온 ≤ 0
   if((c?.temperature_2m??1) <= 0)
-    badges.push(`<span class="alert-badge cold">🧊 ${isKo?'결빙 주의':'Ice Risk'}</span>`);
+    badges.push(`<span class="alert-badge cold">🧊 ${isKo?'결빙 주의! 현재 '+Math.round(c.temperature_2m)+'°C':'Ice Risk '+Math.round(c.temperature_2m)+'°C'}</span>`);
 
-  // PM2.5 나쁨 이상 (>35)
+  // PM2.5 등급별 알림
   const pm25 = aq?.current?.pm2_5 ?? null;
-  if(pm25 != null && pm25 > 35)
-    badges.push(`<span class="alert-badge dust">💨 PM2.5 ${pm25.toFixed(0)}㎍ ${isKo?'나쁨':'Bad'}</span>`);
+  if(pm25 != null && pm25 > 75)
+    badges.push(`<span class="alert-badge dust">😷 ${isKo?'미세먼지 매우나쁨! PM2.5 '+pm25.toFixed(0)+'㎍ 매우나쁨':'PM2.5 Very Bad '+pm25.toFixed(0)+'㎍'}</span>`);
+  else if(pm25 != null && pm25 > 35)
+    badges.push(`<span class="alert-badge dust">💨 ${isKo?'미세먼지 많음! PM2.5 '+pm25.toFixed(0)+'㎍ 나쁨':'PM2.5 Bad '+pm25.toFixed(0)+'㎍'}</span>`);
 
   // 강풍 ≥ 40
   if((c?.wind_speed_10m||0) >= 40)
-    badges.push(`<span class="alert-badge rain">💨 ${isKo?'강풍 주의':'Strong Wind'}</span>`);
+    badges.push(`<span class="alert-badge rain">💨 ${isKo?'강풍 주의! '+Math.round(c.wind_speed_10m)+'km/h':'Strong Wind '+Math.round(c.wind_speed_10m)+'km/h'}</span>`);
 
   if(badges.length){
     banner.innerHTML = `<span class="alert-banner-label">⚠ ${isKo?'오늘의 알림':'Today'}</span>` + badges.join('');
