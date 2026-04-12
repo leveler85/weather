@@ -1915,7 +1915,7 @@ function render(w,aq,n,e,f,model,w30){
             :(uv<=2?'Low':uv<=5?'Mod':uv<=7?'High':uv<=10?'V.High':'Extreme');
           return lv+' '+uv.toFixed(1)+' '+lb;
         })()}</span></div>
-          <div class="detail-item"><span class="detail-label">${t('precip')}</span><span class="detail-val">${c.precipitation}mm</span></div>
+          <div class="detail-item"><span class="detail-label">${t('precip')}</span><span class="detail-val">${c.precipitation!=null?c.precipitation+'mm':'--'}</span></div>
         </div>
       </div>
     </div>
@@ -2149,7 +2149,7 @@ function render(w,aq,n,e,f,model,w30){
     <div class="card">
       <div class="card-title">${t('pressure')} · ${t('visibility')}</div>
       <div class="big-stat">
-        <div class="val">${Math.round(c.pressure_msl)}</div>
+        <div class="val">${c.pressure_msl?Math.round(c.pressure_msl):'--'}</div>
         <div class="unit-lbl">${t('hPa')}</div>
         <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;width:100%;text-align:center">
           <div class="val" style="font-size:1.7rem">${c.visibility?(c.visibility/1000).toFixed(1):'--'}</div>
