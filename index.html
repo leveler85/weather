@@ -1384,8 +1384,8 @@ async function loadWeather(la,lo,n,e,f){
 
   // current: 선택 모델 (KMA/JMA 우선, 현재 날씨 정확도 높음)
   // daily + hourly: best_match 고정 (KMA/JMA는 daily/hourly temperature 값을 null로 반환하는 문제)
-  // ※ uv_index는 KMA current에서 미지원 → current에서 제외, hourly best_match에서 추출
-  // ※ &t= 커스텀 파라미터 제거 (open-meteo API 업데이트 후 400 오류 유발)
+  // ※ uv_index current 제거 (KMA 미지원) → best_match hourly에서 보완
+  // ※ &t= 파라미터 제거 (open-meteo API strict 모드 대응)
   const wURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
     +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,precipitation`
     +`&timezone=auto&models=${model}`;
@@ -1409,16 +1409,47 @@ async function loadWeather(la,lo,n,e,f){
       if(!wf.error){
         if(wf.hourly) w.hourly=wf.hourly;
         if(wf.daily)  w.daily=wf.daily;
-        // KMA 모델은 uv_index 미지원 → best_match hourly에서 현재 시각 값 주입
-        if(w.current && (w.current.uv_index==null||w.current.uv_index===undefined)){
-          const uvNow = new Date();
-          let uvIdx=0, uvDiff=Infinity;
-          (wf.hourly?.time||[]).forEach((ts2,i)=>{
-            const t2=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(ts2)?new Date(ts2+':00'):new Date(ts2);
-            const diff=Math.abs(t2-uvNow);
-            if(diff<uvDiff){uvDiff=diff;uvIdx=i;}
-          });
-          w.current.uv_index = wf.hourly?.uv_index?.[uvIdx] ?? null;
+
+        // ── KMA/JMA current null 보완 ──
+        // KMA는 relative_humidity_2m, precipitation, uv_index 등이 current에서
+        // null 또는 0으로 오는 경우가 있음 → best_match current로 폴백
+        if(w.current){
+          // uv_index: hourly에서 가져오기
+          if(w.current.uv_index==null){
+            const uvNow=new Date(); let uvIdx=0, uvDiff=Infinity;
+            (wf.hourly?.time||[]).forEach((ts2,i)=>{
+              const t2=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(ts2)?new Date(ts2+':00'):new Date(ts2);
+              const diff=Math.abs(t2-uvNow);
+              if(diff<uvDiff){uvDiff=diff;uvIdx=i;}
+            });
+            w.current.uv_index = wf.hourly?.uv_index?.[uvIdx] ?? null;
+          }
+
+          // humidity, precipitation, temperature가 null이면 best_match current로 보완
+          const needsHumidity = w.current.relative_humidity_2m == null;
+          const needsPrecip   = w.current.precipitation == null;
+          const needsTemp     = w.current.temperature_2m == null || w.current.temperature_2m === 0;
+          const needsApparent = w.current.apparent_temperature == null;
+
+          if(needsHumidity || needsPrecip || needsTemp || needsApparent){
+            try {
+              const bRes = await fetch(
+                `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
+                +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation`
+                +`&timezone=auto&models=best_match`,
+                {cache:'no-store'}
+              );
+              if(bRes.ok){
+                const bw = await bRes.json();
+                if(!bw.error && bw.current){
+                  if(needsTemp)     w.current.temperature_2m      = bw.current.temperature_2m      ?? w.current.temperature_2m;
+                  if(needsApparent) w.current.apparent_temperature = bw.current.apparent_temperature ?? w.current.apparent_temperature;
+                  if(needsHumidity) w.current.relative_humidity_2m = bw.current.relative_humidity_2m ?? null;
+                  if(needsPrecip)   w.current.precipitation        = bw.current.precipitation        ?? 0;
+                }
+              }
+            } catch(bErr){ console.warn('best_match current 보완 실패:', bErr); }
+          }
         }
       }
     }
