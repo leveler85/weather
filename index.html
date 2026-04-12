@@ -1489,13 +1489,16 @@ async function loadWeather(la,lo,n,e,f){
     +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max,precipitation_sum`
     +`&timezone=auto&forecast_days=7&models=best_match`;
   const aqURL = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&hourly=pm10,pm2_5,nitrogen_dioxide&timezone=auto&forecast_days=2`;
+  // UV index: gfs_global 명시 (best_match에서 null로 오는 문제)
+  const uvURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&daily=uv_index_max&timezone=auto&models=gfs_global&forecast_days=1`;
 
   try{
-    const[wRes,wForecastRes,aqRes,wNumRes]=await Promise.all([
+    const[wRes,wForecastRes,aqRes,wNumRes,uvRes]=await Promise.all([
       fetch(wURL,{cache:'no-store'}).catch(err=>{throw new Error('날씨 API 연결 실패: '+err.message)}),
       fetch(wForecastURL,{cache:'no-store'}).catch(()=>null),
       fetch(aqURL,{cache:'no-store'}).catch(()=>null),
-      wNumericalURL ? fetch(wNumericalURL,{cache:'no-store'}).catch(()=>null) : Promise.resolve(null)
+      wNumericalURL ? fetch(wNumericalURL,{cache:'no-store'}).catch(()=>null) : Promise.resolve(null),
+      fetch(uvURL,{cache:'no-store'}).catch(()=>null)
     ]);
     if(!wRes.ok) throw new Error(`날씨 API 오류 (HTTP ${wRes.status})`);
     const w=await wRes.json();
@@ -1514,10 +1517,9 @@ async function loadWeather(la,lo,n,e,f){
       if(!wf.error){
         if(wf.hourly) w.hourly=wf.hourly;
         if(wf.daily)  w.daily=wf.daily;
-        // uv_index: daily uv_index_max[0] 사용 (hourly는 timezone 파싱 문제로 0 반환)
+        // uv_index: wForecastURL(best_match) daily에서 우선 시도
         if(w.current){
           const uvMax = wf.daily?.uv_index_max?.[0] ?? null;
-          // 낮 시간(6~18시)이면 max값, 야간이면 0으로 표시
           const nowHour = new Date().getHours();
           w.current.uv_index = (uvMax != null)
             ? (nowHour >= 6 && nowHour < 20 ? uvMax : 0)
@@ -1546,6 +1548,17 @@ async function loadWeather(la,lo,n,e,f){
           hourly: aqRaw.hourly  // 시간별 AQI 차트용 전체 보관
         };
       }
+    }
+    // UV index: gfs_global 전용 응답에서 최종 보완
+    if(w.current && uvRes && uvRes.ok){
+      try{
+        const uvData = await uvRes.json();
+        const gfsUv = uvData.daily?.uv_index_max?.[0] ?? null;
+        if(gfsUv != null){
+          const nowHour = new Date().getHours();
+          w.current.uv_index = nowHour >= 6 && nowHour < 20 ? gfsUv : 0;
+        }
+      }catch(e){ console.warn('UV fetch 파싱 실패:', e); }
     }
     if(w.error) throw new Error('API 응답 오류: '+(w.reason||''));
     // ── 30일 캘린더 데이터 로딩 ──
