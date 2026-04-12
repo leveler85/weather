@@ -1624,6 +1624,19 @@ function render(w,aq,n,e,f,model,w30){
   // 옷차림
   const outfit=getOutfit(c.temperature_2m, c.weather_code, c.relative_humidity_2m, c.wind_speed_10m);
 
+  // PM 차트 카드 HTML (중첩 backtick 방지용 사전 생성)
+  const pmCardHTML = (aq&&aq.hourly&&aq.hourly.pm2_5) ? (
+    '<div class="card" style="margin-bottom:20px">'
+    + '<div class="card-title">' + (isKo?'미세먼지 (PM2.5) 시간별 예보 (48h)':'PM2.5 Hourly Forecast (48h)') + '</div>'
+    + '<div class="pm-chart-wrap"><canvas id="pmChart" class="chart-canvas"></canvas></div>'
+    + '<div class="pm-legend">'
+    + '<div class="pm-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:#34d399;margin-right:2px"></div>' + (isKo?'좋음 ≤15':'Good ≤15') + '</div>'
+    + '<div class="pm-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:#fbbf24;margin-right:2px"></div>' + (isKo?'보통 ≤35':'Mod ≤35') + '</div>'
+    + '<div class="pm-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:#f97316;margin-right:2px"></div>' + (isKo?'나쁨 ≤75':'Bad ≤75') + '</div>'
+    + '<div class="pm-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:#f87171;margin-right:2px"></div>' + (isKo?'매우나쁨 >75':'VBad >75') + '</div>'
+    + '</div></div>'
+  ) : '';
+
   document.getElementById('content').innerHTML=`
   <!-- 메인 카드 -->
   <div class="main-card">
@@ -1675,21 +1688,7 @@ function render(w,aq,n,e,f,model,w30){
     </div>
   </div>
 
-  <!-- PM 시간별 차트 (AQI hourly 데이터 있을 때만) -->
-  ${(()=>{
-    if(!aq||!aq.hourly||!aq.hourly.pm2_5) return '';
-    return `<div class="card" style="margin-bottom:20px">
-      <div class="card-title">${isKo?'미세먼지 (PM2.5) 시간별 예보 (48h)':'PM2.5 Hourly Forecast (48h)'}</div>
-      <div class="pm-chart-wrap"><canvas id="pmChart" class="chart-canvas"></canvas></div>
-      <div class="pm-legend">
-        <div class="pm-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:#34d399;margin-right:2px"></div>${isKo?'좋음 ≤15':'Good ≤15'}</div>
-        <div class="pm-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:#fbbf24;margin-right:2px"></div>${isKo?'보통 ≤35':'Mod ≤35'}</div>
-        <div class="pm-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:#f97316;margin-right:2px"></div>${isKo?'나쁨 ≤75':'Bad ≤75'}</div>
-        <div class="pm-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:#f87171;margin-right:2px"></div>${isKo?'매우나쁨 >75':'VBad >75'}</div>
-      </div>
-    </div>\`;
-  })()}
-
+  ${pmCardHTML}
   <!-- 시간별 예보 -->
   <div class="card" style="margin-bottom:20px">
     <div class="card-title">${t('hourly')}</div>
