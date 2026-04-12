@@ -1389,8 +1389,8 @@ async function loadWeather(la,lo,n,e,f){
     +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,uv_index,precipitation`
     +`&timezone=auto&models=${model}&t=${ts}`;
   const wForecastURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
-    +`&hourly=temperature_2m,apparent_temperature,weather_code,precipitation_probability`
-    +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max`
+    +`&hourly=temperature_2m,apparent_temperature,weather_code,precipitation_probability,uv_index`
+    +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max`
     +`&timezone=auto&forecast_days=7&models=best_match&t=${ts}`;
   const aqURL = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&hourly=pm10,pm2_5,nitrogen_dioxide&timezone=auto&forecast_days=2&t=${ts}`;
 
@@ -1408,6 +1408,17 @@ async function loadWeather(la,lo,n,e,f){
       if(!wf.error){
         if(wf.hourly) w.hourly=wf.hourly;
         if(wf.daily)  w.daily=wf.daily;
+        // KMA 모델은 uv_index 미지원 → best_match hourly에서 현재 시각 값 주입
+        if(w.current && (w.current.uv_index==null||w.current.uv_index===undefined)){
+          const uvNow = new Date();
+          let uvIdx=0, uvDiff=Infinity;
+          (wf.hourly?.time||[]).forEach((ts2,i)=>{
+            const t2=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(ts2)?new Date(ts2+':00'):new Date(ts2);
+            const diff=Math.abs(t2-uvNow);
+            if(diff<uvDiff){uvDiff=diff;uvIdx=i;}
+          });
+          w.current.uv_index = wf.hourly?.uv_index?.[uvIdx] ?? null;
+        }
       }
     }
     // AQI: hourly 배열에서 현재 시각에 가장 가까운 인덱스 값 추출 + hourly 전체 보관
@@ -1772,7 +1783,15 @@ function render(w,aq,n,e,f,model,w30){
         <div class="detail-grid">
           <div class="detail-item"><span class="detail-label">${t('feels')}</span><span class="detail-val">${dispTemp(c.apparent_temperature)}${dispUnit()}</span></div>
           <div class="detail-item"><span class="detail-label">${t('humidity')}</span><span class="detail-val">${c.relative_humidity_2m}%</span></div>
-          <div class="detail-item"><span class="detail-label">${t('uv')}</span><span class="detail-val">${c.uv_index??'--'}</span></div>
+          <div class="detail-item"><span class="detail-label">${t('uv')}</span><span class="detail-val">${(()=>{
+          const uv=c.uv_index;
+          if(uv==null) return '--';
+          const lv=uv<=2?'🟢':uv<=5?'🟡':uv<=7?'🟠':uv<=10?'🔴':'🟣';
+          const lb=LANG==='ko'
+            ?(uv<=2?'낮음':uv<=5?'보통':uv<=7?'높음':uv<=10?'매우높음':'위험')
+            :(uv<=2?'Low':uv<=5?'Mod':uv<=7?'High':uv<=10?'V.High':'Extreme');
+          return lv+' '+uv.toFixed(1)+' '+lb;
+        })()}</span></div>
           <div class="detail-item"><span class="detail-label">${t('precip')}</span><span class="detail-val">${c.precipitation}mm</span></div>
         </div>
       </div>
