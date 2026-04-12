@@ -1347,8 +1347,7 @@ async function cmpPick(idx,la,lo,n,e,f){
 
   try{
     const model = isKorea(la,lo)?'kma_seamless':isJapan(la,lo)?'jma_seamless':'best_match';
-    const ts = Date.now();
-    const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,precipitation&daily=temperature_2m_max,temperature_2m_min&timezone=auto&models=${model}&t=${ts}`,{cache:'no-store'});
+    const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,precipitation&daily=temperature_2m_max,temperature_2m_min&timezone=auto&models=${model}`,{cache:'no-store'});
     const w = await wRes.json();
     const c = w.current;
     const ico = ICO[c.weather_code]||'🌡️';
@@ -1383,17 +1382,18 @@ async function loadWeather(la,lo,n,e,f){
   else if(isJapan(la,lo)) model='jma_seamless';
   else model='best_match';
 
-  const ts = Date.now();
   // current: 선택 모델 (KMA/JMA 우선, 현재 날씨 정확도 높음)
   // daily + hourly: best_match 고정 (KMA/JMA는 daily/hourly temperature 값을 null로 반환하는 문제)
+  // ※ uv_index는 KMA current에서 미지원 → current에서 제외, hourly best_match에서 추출
+  // ※ &t= 커스텀 파라미터 제거 (open-meteo API 업데이트 후 400 오류 유발)
   const wURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
-    +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,uv_index,precipitation`
-    +`&timezone=auto&models=${model}&t=${ts}`;
+    +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,precipitation`
+    +`&timezone=auto&models=${model}`;
   const wForecastURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
     +`&hourly=temperature_2m,apparent_temperature,weather_code,precipitation_probability,uv_index`
     +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max`
-    +`&timezone=auto&forecast_days=7&models=best_match&t=${ts}`;
-  const aqURL = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&hourly=pm10,pm2_5,nitrogen_dioxide&timezone=auto&forecast_days=2&t=${ts}`;
+    +`&timezone=auto&forecast_days=7&models=best_match`;
+  const aqURL = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&hourly=pm10,pm2_5,nitrogen_dioxide&timezone=auto&forecast_days=2`;
 
   try{
     const[wRes,wForecastRes,aqRes]=await Promise.all([
@@ -1467,7 +1467,7 @@ async function loadWeather(la,lo,n,e,f){
       const r16 = await fetch(
         `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}` +
         `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
-        `&timezone=auto&forecast_days=16&models=best_match&t=${ts}`,
+        `&timezone=auto&forecast_days=16&models=best_match`,
         {cache:'no-store'}
       );
       if(r16.ok) {
@@ -1490,7 +1490,7 @@ async function loadWeather(la,lo,n,e,f){
       const rEns = await fetch(
         `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${la}&longitude=${lo}` +
         `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max` +
-        `&timezone=auto&forecast_days=35&models=ecmwf_ifs04&t=${ts}`,
+        `&timezone=auto&forecast_days=35&models=ecmwf_ifs04`,
         {cache:'no-store'}
       );
       if(rEns.ok) {
