@@ -715,7 +715,6 @@ body.light-mode .fav-chip{background:#fff;border-color:rgba(0,0,0,0.1);color:#1a
 .alert-badge.dust{border-color:rgba(245,158,11,.5);color:#fcd34d}
 .alert-badge.heat{border-color:rgba(239,68,68,.5);color:#fca5a5}
 .alert-badge.cold{border-color:rgba(147,197,253,.5);color:#93c5fd}
-.alert-badge.uv  {border-color:rgba(251,146,60,.5);color:#fdba74}
 .alert-banner-label{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-right:4px}
 
 /* ── 시간별 확장 카드 (PM + 체감) ── */
@@ -1451,7 +1450,7 @@ async function cmpPick(idx,la,lo,n,e,f){
       <div class="cmp-row"><span>${t('feels')}</span><span>${Math.round(c.apparent_temperature)}°C</span></div>
       <div class="cmp-row"><span>${t('humidity')}</span><span>${c.relative_humidity_2m}%</span></div>
       <div class="cmp-row"><span>${t('wind')}</span><span>${Math.round(c.wind_speed_10m)} km/h</span></div>
-      <div class="cmp-row"><span>${t('precip')}</span><span>${c.precipitation}mm</span></div>
+      <div class="cmp-row"><span>${t('precip')}</span><span>${c.precipitation!=null?c.precipitation+'mm':'--'}</span></div>
       <div class="cmp-row"><span>${LANG==='ko'?'최고':'Max'}</span><span>${Math.round(w.daily.temperature_2m_max[0])}°C</span></div>
       <div class="cmp-row"><span>${LANG==='ko'?'최저':'Min'}</span><span>${Math.round(w.daily.temperature_2m_min[0])}°C</span></div>`;
   }catch(ex){
@@ -1485,20 +1484,18 @@ async function loadWeather(la,lo,n,e,f){
     ? `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,precipitation&timezone=auto&models=best_match`
     : null;
   const wForecastURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
-    +`&hourly=temperature_2m,apparent_temperature,weather_code,precipitation_probability,uv_index,precipitation`
-    +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max,precipitation_sum`
+    +`&hourly=temperature_2m,apparent_temperature,weather_code,precipitation_probability,precipitation`
+    +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,precipitation_sum`
     +`&timezone=auto&forecast_days=7&models=best_match`;
   const aqURL = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&hourly=pm10,pm2_5,nitrogen_dioxide&timezone=auto&forecast_days=2`;
-  // UV: air-quality API에서 uv_index 별도 요청 (가장 안정적)
-  const uvURL = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&hourly=uv_index&timezone=auto&forecast_days=1`;
+
 
   try{
-    const[wRes,wForecastRes,aqRes,wNumRes,uvRes]=await Promise.all([
+    const[wRes,wForecastRes,aqRes,wNumRes]=await Promise.all([
       fetch(wURL,{cache:'no-store'}).catch(err=>{throw new Error('날씨 API 연결 실패: '+err.message)}),
       fetch(wForecastURL,{cache:'no-store'}).catch(()=>null),
       fetch(aqURL,{cache:'no-store'}).catch(()=>null),
-      wNumericalURL ? fetch(wNumericalURL,{cache:'no-store'}).catch(()=>null) : Promise.resolve(null),
-      fetch(uvURL,{cache:'no-store'}).catch(()=>null)
+      wNumericalURL ? fetch(wNumericalURL,{cache:'no-store'}).catch(()=>null) : Promise.resolve(null)
     ]);
     if(!wRes.ok) throw new Error(`날씨 API 오류 (HTTP ${wRes.status})`);
     const w=await wRes.json();
@@ -1517,14 +1514,7 @@ async function loadWeather(la,lo,n,e,f){
       if(!wf.error){
         if(wf.hourly) w.hourly=wf.hourly;
         if(wf.daily)  w.daily=wf.daily;
-        // uv_index: wForecastURL(best_match) daily에서 우선 시도
-        if(w.current){
-          const uvMax = wf.daily?.uv_index_max?.[0] ?? null;
-          const nowHour = new Date().getHours();
-          w.current.uv_index = (uvMax != null)
-            ? (nowHour >= 6 && nowHour < 20 ? uvMax : 0)
-            : null;
-        }
+
       }
     }
     // AQI: hourly 배열에서 현재 시각에 가장 가까운 인덱스 값 추출 + hourly 전체 보관
@@ -1549,28 +1539,7 @@ async function loadWeather(la,lo,n,e,f){
         };
       }
     }
-    // UV index: air-quality API hourly에서 현재 시각 가장 가까운 값 추출
-    if(w.current && uvRes && uvRes.ok){
-      try{
-        const uvData = await uvRes.json();
-        if(uvData.hourly?.uv_index && uvData.hourly?.time){
-          const uvNow = new Date();
-          // air-quality API time은 "YYYY-MM-DDTHH:MM" 형식, timezone=auto로 받음
-          // 현재 시각과 가장 가까운 인덱스 찾기
-          let bestIdx = 0, bestDiff = Infinity;
-          uvData.hourly.time.forEach((tStr, i) => {
-            // "2026-04-13T14:00" → 로컬 Date로 파싱
-            const t = new Date(tStr.length === 16 ? tStr + ':00' : tStr);
-            const diff = Math.abs(t - uvNow);
-            if(diff < bestDiff){ bestDiff = diff; bestIdx = i; }
-          });
-          const uvVal = uvData.hourly.uv_index[bestIdx];
-          if(uvVal != null && uvVal >= 0){
-            w.current.uv_index = parseFloat(uvVal.toFixed(1));
-          }
-        }
-      }catch(e){ console.warn('UV air-quality 파싱 실패:', e); }
-    }
+
     if(w.error) throw new Error('API 응답 오류: '+(w.reason||''));
     // ── 30일 캘린더 데이터 로딩 ──
     // 전략: 16일 일반예보(best_match) + 앙상블 35일(ecmwf_ifs04) 병합
@@ -1911,15 +1880,7 @@ function render(w,aq,n,e,f,model,w30){
         <div class="detail-grid">
           <div class="detail-item"><span class="detail-label">${t('feels')}</span><span class="detail-val feels-val">${dispTemp(c.apparent_temperature)}${dispUnit()}</span></div>
           <div class="detail-item"><span class="detail-label">${t('humidity')}</span><span class="detail-val">${c.relative_humidity_2m}%</span></div>
-          <div class="detail-item"><span class="detail-label">${t('uv')}</span><span class="detail-val">${(()=>{
-          const uv=c.uv_index;
-          if(uv==null) return '--';
-          const lv=uv<=2?'🟢':uv<=5?'🟡':uv<=7?'🟠':uv<=10?'🔴':'🟣';
-          const lb=LANG==='ko'
-            ?(uv<=2?'낮음':uv<=5?'보통':uv<=7?'높음':uv<=10?'매우높음':'위험')
-            :(uv<=2?'Low':uv<=5?'Mod':uv<=7?'High':uv<=10?'V.High':'Extreme');
-          return lv+' '+uv.toFixed(1)+' '+lb;
-        })()}</span></div>
+
           <div class="detail-item"><span class="detail-label">${t('precip')}</span><span class="detail-val">${(()=>{
           const todaySum = d?.precipitation_sum?.[0];
           const cur = c.precipitation;
@@ -2341,7 +2302,6 @@ function genBriefing(c, d, h, now) {
   // 알림 태그 생성
   const alerts = [];
   if (pmRainPct >= 50) alerts.push(isKo ? `🌂 오후 강수 ${pmRainPct}%` : `🌂 PM Rain ${pmRainPct}%`);
-  if ((c.uv_index || 0) >= 7)         alerts.push(isKo ? '🕶️ 자외선 강함' : '🕶️ High UV');
   if (c.wind_speed_10m >= 40)          alerts.push(isKo ? '💨 강풍 주의'   : '💨 Strong Wind');
   if (c.relative_humidity_2m >= 82)    alerts.push(isKo ? '💧 고습도'      : '💧 High Humidity');
   if (temp <= 0)                        alerts.push(isKo ? '🧊 결빙 주의'   : '🧊 Ice Risk');
@@ -2364,8 +2324,6 @@ function genBriefing(c, d, h, now) {
   const rainNote = pmRainPct >= 50
     ? (isKo ? ' 오후에 비가 올 수 있으니 우산을 챙기세요.' : ' Chance of afternoon rain — bring an umbrella.')
     : '';
-  const uvNote = (c.uv_index || 0) >= 7
-    ? (isKo ? ' 자외선이 강하니 선크림을 챙기세요.' : ' Strong UV — apply sunscreen.') : '';
 
   let text;
   if (code >= 95)
@@ -2382,8 +2340,8 @@ function genBriefing(c, d, h, now) {
       : `Snow expected. ${temp}${dispUnit()} (feels ${feels}${dispUnit()}), ${rangeStr}. Watch for icy roads.`;
   else if (code <= 1)
     text = isKo
-      ? `맑은 날씨입니다. 현재 ${temp}${dispUnit()} (체감 ${feels}${dispUnit()}), ${rangeStr}.${rainNote}${uvNote}`
-      : `Clear skies. Currently ${temp}${dispUnit()} (feels ${feels}${dispUnit()}), ${rangeStr}.${rainNote}${uvNote}`;
+      ? `맑은 날씨입니다. 현재 ${temp}${dispUnit()} (체감 ${feels}${dispUnit()}), ${rangeStr}.${rainNote}`
+      : `Clear skies. Currently ${temp}${dispUnit()} (feels ${feels}${dispUnit()}), ${rangeStr}.${rainNote}`;
   else
     text = isKo
       ? `${desc} 날씨입니다. 현재 ${temp}${dispUnit()} (체감 ${feels}${dispUnit()}), ${rangeStr}.${rainNote}`
@@ -2688,10 +2646,6 @@ function updateAlertBanner(w, aq){
   const tmrPP = d?.precipitation_probability_max?.[1] ?? null;
   if(tmrPP != null && tmrPP >= 50)
     badges.push(`<span class="alert-badge rain">🌧 ${isKo?'내일 비':'Rain tmr'} ${tmrPP}%</span>`);
-
-  // 오늘 UV ≥ 7
-  if((c?.uv_index||0) >= 7)
-    badges.push(`<span class="alert-badge uv">🕶 ${isKo?'자외선 강함':'High UV'} ${c.uv_index}</span>`);
 
   // 현재 기온 ≥ 33
   if((c?.temperature_2m||0) >= 33)
