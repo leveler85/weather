@@ -118,7 +118,7 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:32p
 .search-wrap input{
   width:100%;background:var(--surface);border:1px solid var(--border);
   border-radius:12px;padding:11px 44px 11px 16px;color:var(--text);
-  font-family:'DM Mono',monospace;font-size:.82rem;outline:none;
+  font-family:'DM Mono',monospace;font-size:16px;outline:none;
   transition:border-color .2s,box-shadow .2s;
 }
 .search-wrap input:focus{border-color:rgba(79,156,249,.4);box-shadow:0 0 0 3px rgba(79,156,249,.08)}
@@ -166,7 +166,7 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:32p
 .compare-search input{
   width:100%;background:var(--surface2);border:1px solid var(--border);
   border-radius:10px;padding:10px 14px;color:var(--text);
-  font-family:'DM Mono',monospace;font-size:.82rem;outline:none;
+  font-family:'DM Mono',monospace;font-size:16px;outline:none;
   transition:border-color .2s;
 }
 .compare-search input:focus{border-color:rgba(79,156,249,.4)}
@@ -194,6 +194,7 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:32p
   font-family:'DM Serif Display',serif;font-size:1.4rem;
   color:var(--muted);padding-top:60px;
 }
+@media(max-width:900px){.vs-badge{padding-top:0;padding:16px 0;font-size:1rem}}
 
 /* ── STATUS ── */
 .state-msg{text-align:center;padding:60px 20px;color:var(--muted);font-size:.88rem;line-height:2.5}
@@ -238,6 +239,7 @@ body.wx-clear   .main-card::before{background:linear-gradient(90deg,transparent,
 .detail-item{display:flex;flex-direction:column;gap:2px}
 .detail-label{color:var(--muted);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase}
 .detail-val{font-size:.85rem}
+.feels-val{font-size:1.15rem;font-family:'DM Serif Display',serif;color:var(--accent2);font-weight:400;letter-spacing:.02em}
 
 /* ── OUTFIT CARD ── */
 .outfit-card{
@@ -268,7 +270,7 @@ body.wx-clear   .main-card::before{background:linear-gradient(90deg,transparent,
 .card-title{font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
 
 /* ── HOURLY ── */
-.hourly-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.hourly-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;-webkit-overflow-scrolling:touch}
 .hour-item{
   flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:5px;
   background:var(--surface2);border-radius:12px;padding:10px 12px;
@@ -414,7 +416,9 @@ body.wx-clear   .main-card::before{background:linear-gradient(90deg,transparent,
   .main-card{padding:18px}
   .temp-big{font-size:5rem}
   .city-name{font-size:1.6rem}
-  .search-wrap{max-width:100%;flex:unset;width:100%}
+  .search-wrap{max-width:100%;flex:unset;width:100%;order:2}
+  .logo{order:1}
+  .header-right{order:3;width:100%;justify-content:flex-start}
   header{gap:8px;flex-wrap:wrap}
   .app{padding:16px 14px}
   .weather-detail{min-width:0;width:100%}
@@ -543,7 +547,7 @@ body.wx-clear   .main-card::before{background:linear-gradient(90deg,transparent,
 .fav-bar{
   display:flex;gap:8px;flex-wrap:wrap;
   margin-bottom:16px;align-items:center;
-  min-height:0;
+  min-height:0;overflow-x:auto;-webkit-overflow-scrolling:touch;
 }
 .fav-chip{
   background:var(--surface);border:1px solid var(--border);
@@ -801,6 +805,46 @@ body.light-mode .fav-chip{background:#fff;border-color:rgba(0,0,0,0.1);color:#1a
   opacity:.6;
 }
 @media(max-width:600px){.food-cards{grid-template-columns:1fr}}
+
+/* ── 360px 이하 (갤럭시 S, 아이폰SE 등 소형) ── */
+@media(max-width:375px){
+  .app{padding:10px 8px}
+  .logo{font-size:1.2rem}
+  .temp-big{font-size:3.8rem}
+  .city-name{font-size:1.2rem}
+  .city-meta{font-size:.62rem}
+  /* 캘린더 7칸 → 더 촘촘하게 */
+  .cal-cell{min-height:54px;padding:4px 2px;border-radius:6px}
+  .cal-ico{font-size:.95rem}
+  .cal-hi{font-size:.64rem}
+  .cal-lo{font-size:.58rem}
+  .cal-day-num{font-size:.65rem}
+  .cal-grid{gap:3px}
+  /* 음식카드 */
+  .food-emoji{font-size:1.8rem}
+  .food-name{font-size:.92rem}
+  .food-reason{font-size:.66rem}
+  /* 헤더 버튼 더 축소 */
+  .loc-btn{font-size:.66rem;padding:6px 8px}
+  .compare-btn{font-size:.66rem;padding:6px 8px}
+  .theme-btn{padding:6px 10px;font-size:.8rem}
+  /* AQI 레벨 스트립 */
+  .aqi-level-strip{grid-template-columns:repeat(2,1fr)}
+  .aqi-action-row{grid-template-columns:repeat(3,1fr)}
+  /* 시간별 카드 */
+  .hour-item{min-width:48px;padding:7px 6px}
+  .hour-icon{font-size:1.1rem}
+  .hour-temp{font-size:.76rem}
+  /* 7일 예보 */
+  .day-item{grid-template-columns:80px 1fr 38px 38px;gap:4px;font-size:.74rem}
+  /* detail grid */
+  .detail-label{font-size:.6rem}
+  .detail-val{font-size:.8rem}
+  /* PM 카드 */
+  .pm-card-value{font-size:1.4rem}
+  /* 즐겨찾기 */
+  .fav-chip{font-size:.64rem;padding:4px 7px}
+}
 </style>
 </head>
 <body class="wx-cloudy">
@@ -1851,7 +1895,7 @@ function render(w,aq,n,e,f,model,w30){
       <div class="weather-detail">
         <div class="weather-desc">${ico} ${dsc}</div>
         <div class="detail-grid">
-          <div class="detail-item"><span class="detail-label">${t('feels')}</span><span class="detail-val">${dispTemp(c.apparent_temperature)}${dispUnit()}</span></div>
+          <div class="detail-item"><span class="detail-label">${t('feels')}</span><span class="detail-val feels-val">${dispTemp(c.apparent_temperature)}${dispUnit()}</span></div>
           <div class="detail-item"><span class="detail-label">${t('humidity')}</span><span class="detail-val">${c.relative_humidity_2m}%</span></div>
           <div class="detail-item"><span class="detail-label">${t('uv')}</span><span class="detail-val">${(()=>{
           const uv=c.uv_index;
