@@ -1489,8 +1489,8 @@ async function loadWeather(la,lo,n,e,f){
     +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max,precipitation_sum`
     +`&timezone=auto&forecast_days=7&models=best_match`;
   const aqURL = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&hourly=pm10,pm2_5,nitrogen_dioxide&timezone=auto&forecast_days=2`;
-  // UV index: gfs_global 명시 (best_match에서 null로 오는 문제)
-  const uvURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&daily=uv_index_max&timezone=auto&models=gfs_global&forecast_days=1`;
+  // UV: air-quality API에서 uv_index 별도 요청 (가장 안정적)
+  const uvURL = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&hourly=uv_index&timezone=auto&forecast_days=1`;
 
   try{
     const[wRes,wForecastRes,aqRes,wNumRes,uvRes]=await Promise.all([
@@ -1549,16 +1549,27 @@ async function loadWeather(la,lo,n,e,f){
         };
       }
     }
-    // UV index: gfs_global 전용 응답에서 최종 보완
+    // UV index: air-quality API hourly에서 현재 시각 가장 가까운 값 추출
     if(w.current && uvRes && uvRes.ok){
       try{
         const uvData = await uvRes.json();
-        const gfsUv = uvData.daily?.uv_index_max?.[0] ?? null;
-        if(gfsUv != null){
-          const nowHour = new Date().getHours();
-          w.current.uv_index = nowHour >= 6 && nowHour < 20 ? gfsUv : 0;
+        if(uvData.hourly?.uv_index && uvData.hourly?.time){
+          const uvNow = new Date();
+          // air-quality API time은 "YYYY-MM-DDTHH:MM" 형식, timezone=auto로 받음
+          // 현재 시각과 가장 가까운 인덱스 찾기
+          let bestIdx = 0, bestDiff = Infinity;
+          uvData.hourly.time.forEach((tStr, i) => {
+            // "2026-04-13T14:00" → 로컬 Date로 파싱
+            const t = new Date(tStr.length === 16 ? tStr + ':00' : tStr);
+            const diff = Math.abs(t - uvNow);
+            if(diff < bestDiff){ bestDiff = diff; bestIdx = i; }
+          });
+          const uvVal = uvData.hourly.uv_index[bestIdx];
+          if(uvVal != null && uvVal >= 0){
+            w.current.uv_index = parseFloat(uvVal.toFixed(1));
+          }
         }
-      }catch(e){ console.warn('UV fetch 파싱 실패:', e); }
+      }catch(e){ console.warn('UV air-quality 파싱 실패:', e); }
     }
     if(w.error) throw new Error('API 응답 오류: '+(w.reason||''));
     // ── 30일 캘린더 데이터 로딩 ──
