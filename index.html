@@ -1510,24 +1510,33 @@ async function loadWeather(la,lo,n,e,f){
             });
             w.current.uv_index = wf.hourly?.uv_index?.[uvIdx] ?? null;
           }
-          // humidity/precipitation/temperature null → best_match current로 보완
-          const needsH = w.current.relative_humidity_2m == null;
-          const needsP = w.current.precipitation == null;
-          const needsT = w.current.temperature_2m == null || w.current.temperature_2m === 0;
-          const needsA = w.current.apparent_temperature == null;
-          if(needsH || needsP || needsT || needsA){
+          // humidity/precipitation/temperature/wind/pressure/visibility null → best_match current로 보완
+          const needsH  = w.current.relative_humidity_2m == null;
+          const needsP  = w.current.precipitation == null;
+          const needsT  = w.current.temperature_2m == null || w.current.temperature_2m === 0;
+          const needsA  = w.current.apparent_temperature == null;
+          const needsWS = w.current.wind_speed_10m == null || w.current.wind_speed_10m === 0;
+          const needsWD = w.current.wind_direction_10m == null;
+          const needsVis= w.current.visibility == null || w.current.visibility === 0;
+          const needsPr = w.current.pressure_msl == null || w.current.pressure_msl === 0;
+          if(needsH || needsP || needsT || needsA || needsWS || needsWD || needsVis || needsPr){
             try{
               const bRes = await fetch(
                 `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
                 +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation`
+                +`,wind_speed_10m,wind_direction_10m,visibility,pressure_msl`
                 +`&timezone=auto&models=best_match`,{cache:'no-store'});
               if(bRes.ok){
                 const bw=await bRes.json();
                 if(!bw.error&&bw.current){
-                  if(needsT) w.current.temperature_2m     = bw.current.temperature_2m     ?? w.current.temperature_2m;
-                  if(needsA) w.current.apparent_temperature= bw.current.apparent_temperature?? w.current.apparent_temperature;
-                  if(needsH) w.current.relative_humidity_2m= bw.current.relative_humidity_2m?? null;
-                  if(needsP) w.current.precipitation       = bw.current.precipitation       ?? 0;
+                  if(needsT)  w.current.temperature_2m      = bw.current.temperature_2m      ?? w.current.temperature_2m;
+                  if(needsA)  w.current.apparent_temperature = bw.current.apparent_temperature ?? w.current.apparent_temperature;
+                  if(needsH)  w.current.relative_humidity_2m = bw.current.relative_humidity_2m ?? null;
+                  if(needsP)  w.current.precipitation        = bw.current.precipitation        ?? 0;
+                  if(needsWS) w.current.wind_speed_10m       = bw.current.wind_speed_10m       ?? 0;
+                  if(needsWD) w.current.wind_direction_10m   = bw.current.wind_direction_10m   ?? 0;
+                  if(needsVis)w.current.visibility            = bw.current.visibility            ?? null;
+                  if(needsPr) w.current.pressure_msl         = bw.current.pressure_msl         ?? null;
                 }
               }
             }catch(bErr){console.warn('best_match current 보완 실패:',bErr);}
