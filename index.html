@@ -440,7 +440,14 @@ body.wx-clear   .main-card::before{background:linear-gradient(90deg,transparent,
   /* 헤더 */
   .header-right{width:100%;justify-content:flex-end;flex-wrap:wrap}
 }
-@media(max-width:480px){
+@media(max-width:480px){.day-item{grid-template-columns:90px 1fr 42px 42px;gap:6px}
+  .hour-item{min-width:52px;padding:8px 8px}
+  .compare-searches{grid-template-columns:1fr}
+  .wind-compass{width:80px;height:80px}
+  .sun-arc-wrap{padding:0 4px}
+  .detail-grid{grid-template-columns:1fr 1fr}
+  .fav-chip{font-size:.68rem;padding:5px 8px}
+  
   .app{padding:12px 10px}
   .header-right{width:100%;justify-content:flex-end}
   .temp-big{font-size:4.2rem}
@@ -654,6 +661,63 @@ body.wx-clear   .main-card::before{background:linear-gradient(90deg,transparent,
 }
 
 
+
+/* ── 다크/라이트 테마 ── */
+body.light-mode{
+  --bg:#f0f4fb;--surface:#ffffff;--surface2:#e8edf5;
+  --border:rgba(0,0,0,0.09);--text:#1a2033;--muted:#8896a8;
+  --warm:#d97706;--cold:#4f6dd4;
+  --good:#059669;--warn:#d97706;--bad:#ea580c;--danger:#dc2626;
+}
+body.light-mode .main-card{background:linear-gradient(135deg,#fff 0%,#e8f0fe 100%)}
+body.light-mode .bg-orb-1{background:radial-gradient(circle,rgba(79,156,249,0.12) 0%,transparent 70%)}
+body.light-mode .hour-item,body.light-mode .card,body.light-mode .brief-card,body.light-mode .outfit-card{background:#fff;border-color:rgba(0,0,0,0.08)}
+body.light-mode .day-item:hover{background:#f0f4fb}
+body.light-mode .autocomplete,.light-mode .compare-panel{background:#fff}
+body.light-mode .search-wrap input{background:#fff;border-color:rgba(0,0,0,0.15);color:#1a2033}
+body.light-mode .fav-chip{background:#fff;border-color:rgba(0,0,0,0.1);color:#1a2033}
+
+/* ── 테마 토글 버튼 ── */
+.theme-btn{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:7px 11px;color:var(--muted);
+  cursor:pointer;font-size:.82rem;transition:all .2s;flex-shrink:0;
+}
+.theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── 알림 배너 ── */
+.alert-banner{
+  display:none;background:linear-gradient(135deg,rgba(59,130,246,.13),rgba(99,102,241,.1));
+  border:1px solid rgba(99,102,241,.3);border-radius:14px;
+  padding:12px 18px;margin-bottom:16px;
+  animation:fadeUp .4s ease;
+  display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;
+}
+.alert-banner.hidden{display:none!important}
+.alert-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);
+  border-radius:20px;padding:4px 11px;font-size:.75rem;font-weight:500;
+}
+.alert-badge.rain{border-color:rgba(99,102,241,.5);color:#a5b4fc}
+.alert-badge.dust{border-color:rgba(245,158,11,.5);color:#fcd34d}
+.alert-badge.heat{border-color:rgba(239,68,68,.5);color:#fca5a5}
+.alert-badge.cold{border-color:rgba(147,197,253,.5);color:#93c5fd}
+.alert-badge.uv  {border-color:rgba(251,146,60,.5);color:#fdba74}
+.alert-banner-label{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+
+/* ── 시간별 확장 카드 (PM + 체감) ── */
+.hour-feels{font-size:.58rem;color:var(--muted)}
+.hour-pm{font-size:.6rem;border-radius:4px;padding:1px 5px;margin-top:1px;font-weight:600}
+.hour-pm.good{background:rgba(52,211,153,.18);color:#34d399}
+.hour-pm.moderate{background:rgba(251,191,36,.18);color:#fbbf24}
+.hour-pm.bad{background:rgba(249,115,22,.18);color:#f97316}
+.hour-pm.vbad{background:rgba(248,113,113,.18);color:#f87171}
+
+/* ── PM 시간별 차트 ── */
+.pm-chart-wrap{position:relative;height:100px;margin-top:8px}
+.pm-legend{display:flex;gap:14px;margin-top:6px;flex-wrap:wrap}
+.pm-legend-item{display:flex;align-items:center;gap:5px;font-size:.7rem;color:var(--muted)}
 </style>
 </head>
 <body class="wx-cloudy">
@@ -676,11 +740,14 @@ body.wx-clear   .main-card::before{background:linear-gradient(90deg,transparent,
       <button class="loc-btn" onclick="getLoc()">◉ <span data-t="myLoc">내 위치</span></button>
       <button class="loc-btn" onclick="addFav()" title="현재 도시 즐겨찾기" style="padding:9px 12px">⭐</button>
       <button class="compare-btn" id="compareBtn" onclick="toggleCompare()">⊞ <span data-t="compare">도시 비교</span></button>
+      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="다크/라이트 모드">🌙</button>
       <button class="lang-btn" onclick="switchLang('ko')" id="langKo">한국어</button>
       <button class="lang-btn active" id="langEn" onclick="switchLang('en')" style="display:none">English</button>
     </div>
   </header>
 
+  <!-- 알림 배너 -->
+  <div class="alert-banner hidden" id="alertBanner"></div>
   <!-- 즐겨찾기 바 -->
   <div class="fav-bar" id="favBar"></div>
 
@@ -1100,22 +1167,28 @@ function drawPrecipChart(canvasId, hours, probs, temps){
     ctx.fill();
   }
 
-  // Temp line
+  // Temp line (null 값 스킵 처리)
   if(temps && temps.length >= n){
-    const minT = Math.min(...temps.slice(0,n));
-    const maxT = Math.max(...temps.slice(0,n));
-    const rangeT = maxT - minT || 1;
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(251,191,36,0.8)';
-    ctx.lineWidth = 2;
-    ctx.lineJoin = 'round';
-    for(let i=0;i<n;i++){
-      const x = PAD.left + (i/(n-1))*chartW;
-      const norm = (temps[i]-minT)/rangeT;
-      const y = PAD.top + chartH*(1-norm*0.7-0.1);
-      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    const validTemps = temps.slice(0,n).filter(v => v != null);
+    if(validTemps.length >= 2){
+      const minT = Math.min(...validTemps);
+      const maxT = Math.max(...validTemps);
+      const rangeT = maxT - minT || 1;
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(251,191,36,0.8)';
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      let penDown = false;
+      for(let i=0;i<n;i++){
+        if(temps[i] == null){ penDown = false; continue; }
+        const x = PAD.left + (i/(n-1))*chartW;
+        const norm = (temps[i]-minT)/rangeT;
+        const y = PAD.top + chartH*(1-norm*0.7-0.1);
+        if(!penDown){ ctx.moveTo(x,y); penDown=true; }
+        else { ctx.lineTo(x,y); }
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
   }
 
   // X-axis labels (every 6h)
@@ -1278,10 +1351,10 @@ async function loadWeather(la,lo,n,e,f){
     +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,uv_index,precipitation`
     +`&timezone=auto&models=${model}&t=${ts}`;
   const wForecastURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
-    +`&hourly=temperature_2m,weather_code,precipitation_probability`
-    +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset`
+    +`&hourly=temperature_2m,apparent_temperature,weather_code,precipitation_probability`
+    +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max`
     +`&timezone=auto&forecast_days=7&models=best_match&t=${ts}`;
-  const aqURL = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&current=pm10,pm2_5,nitrogen_dioxide&timezone=auto&t=${ts}`;
+  const aqURL = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&hourly=pm10,pm2_5,nitrogen_dioxide&timezone=auto&forecast_days=2&t=${ts}`;
 
   try{
     const[wRes,wForecastRes,aqRes]=await Promise.all([
@@ -1299,7 +1372,28 @@ async function loadWeather(la,lo,n,e,f){
         if(wf.daily)  w.daily=wf.daily;
       }
     }
-    const aq=aqRes&&aqRes.ok?await aqRes.json():null;
+    // AQI: hourly 배열에서 현재 시각에 가장 가까운 인덱스 값 추출 + hourly 전체 보관
+    let aq = null;
+    if(aqRes&&aqRes.ok){
+      const aqRaw = await aqRes.json();
+      if(!aqRaw.error && aqRaw.hourly){
+        const aqNow = new Date();
+        let aqIdx = 0, aqDiff = Infinity;
+        (aqRaw.hourly.time||[]).forEach((ts2,i)=>{
+          const t2 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(ts2)?new Date(ts2+':00'):new Date(ts2);
+          const diff = Math.abs(t2 - aqNow);
+          if(diff < aqDiff){ aqDiff = diff; aqIdx = i; }
+        });
+        aq = {
+          current: {
+            pm2_5: aqRaw.hourly.pm2_5?.[aqIdx] ?? null,
+            pm10:  aqRaw.hourly.pm10?.[aqIdx]  ?? null,
+            nitrogen_dioxide: aqRaw.hourly.nitrogen_dioxide?.[aqIdx] ?? null
+          },
+          hourly: aqRaw.hourly  // 시간별 AQI 차트용 전체 보관
+        };
+      }
+    }
     if(w.error) throw new Error('API 응답 오류: '+(w.reason||''));
     // ── 30일 캘린더 데이터 로딩 ──
     // 전략: 16일 일반예보(best_match) + 앙상블 35일(ecmwf_ifs04) 병합
@@ -1423,7 +1517,7 @@ function dispTemp(c){return useFahrenheit?toF(c):Math.round(c)}
 function dispUnit(){return useFahrenheit?'°F':'°C'}
 function toggleUnit(){
   useFahrenheit=!useFahrenheit;
-  if(lastWeatherData) render(lastWeatherData.w,lastWeatherData.aq,lastWeatherData.n,lastWeatherData.e,lastWeatherData.f,lastWeatherData.model);
+  if(lastWeatherData) render(lastWeatherData.w,lastWeatherData.aq,lastWeatherData.n,lastWeatherData.e,lastWeatherData.f,lastWeatherData.model,lastWeatherData.w30);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1444,17 +1538,27 @@ function render(w,aq,n,e,f,model,w30){
   const dateStr = now.toLocaleDateString(LANG==='ko'?'ko-KR':'en-US',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
 
   // ── 시간 문자열 파싱 헬퍼: "2026-04-12T22:00" → 로컬시간 기준 Date
-  // Open-Meteo는 timezone=auto 로 로컬 시간 문자열을 반환하지만
-  // new Date("...T22:00") 은 브라우저가 UTC로 파싱해 KST와 9시간 어긋남
-  // → 뒤에 :00 을 붙여 로컬시간으로 강제 파싱
   function parseLocalTime(s){
     if(!s) return new Date(NaN);
-    // "YYYY-MM-DDTHH:MM" 형태면 초 추가해 로컬로 파싱
     if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) return new Date(s+':00');
     return new Date(s);
   }
 
-  // 시간별 (24h)
+  // ── PM2.5 → 등급 클래스 ──
+  function pmClass(v){ if(v==null) return ''; if(v<=15) return 'good'; if(v<=35) return 'moderate'; if(v<=75) return 'bad'; return 'vbad'; }
+  function pmLabel(v,isKo){ if(v==null) return ''; if(v<=15) return isKo?'좋음':'Good'; if(v<=35) return isKo?'보통':'Mod'; if(v<=75) return isKo?'나쁨':'Bad'; return isKo?'매우나쁨':'VBad'; }
+
+  // ── AQI hourly → time 인덱스 매핑 ──
+  const aqHourlyMap={};
+  if(aq&&aq.hourly){
+    (aq.hourly.time||[]).forEach((ts2,i)=>{
+      const key = ts2.slice(0,13); // "YYYY-MM-DDTHH"
+      aqHourlyMap[key]={pm25:aq.hourly.pm2_5?.[i]??null, pm10:aq.hourly.pm10?.[i]??null};
+    });
+  }
+
+  // 시간별 (24h) — 체감온도 + PM2.5 추가
+  const isKo=LANG==='ko';
   const hourHTML=[];
   for(let i=0;i<h.time.length&&hourHTML.length<24;i++){
     const hd=parseLocalTime(h.time[i]);
@@ -1462,10 +1566,16 @@ function render(w,aq,n,e,f,model,w30){
       const isNow=Math.abs(hd-now)<3600000;
       const pp=h.precipitation_probability?.[i]||0;
       const ht=h.temperature_2m[i];
+      const hf=h.apparent_temperature?.[i]; // 체감온도
+      const hKey=h.time[i].slice(0,13);
+      const hPm=aqHourlyMap[hKey]?.pm25??null;
+      const hPmCls=pmClass(hPm);
       hourHTML.push(`<div class="hour-item${isNow?' now':''}">
-        <span class="hour-time">${hd.getHours().toString().padStart(2,'0')}${LANG==='ko'?'시':'h'}</span>
+        <span class="hour-time">${hd.getHours().toString().padStart(2,'0')}${isKo?'시':'h'}</span>
         <span class="hour-icon">${ICO[h.weather_code[i]]||'🌡️'}</span>
         <span class="hour-temp">${ht!=null?dispTemp(ht)+'°':'--'}</span>
+        ${hf!=null?`<span class="hour-feels">${isKo?'체감':'feel'} ${dispTemp(hf)}°</span>`:''}
+        ${hPm!=null?`<span class="hour-pm ${hPmCls}">PM ${hPm.toFixed(0)}</span>`:''}
         ${pp>0?`<span class="hour-precip">${pp}%</span>`:''}
       </div>`);
     }
@@ -1564,6 +1674,21 @@ function render(w,aq,n,e,f,model,w30){
       </div>
     </div>
   </div>
+
+  <!-- PM 시간별 차트 (AQI hourly 데이터 있을 때만) -->
+  ${(()=>{
+    if(!aq||!aq.hourly||!aq.hourly.pm2_5) return '';
+    return `<div class="card" style="margin-bottom:20px">
+      <div class="card-title">${isKo?'미세먼지 (PM2.5) 시간별 예보 (48h)':'PM2.5 Hourly Forecast (48h)'}</div>
+      <div class="pm-chart-wrap"><canvas id="pmChart" class="chart-canvas"></canvas></div>
+      <div class="pm-legend">
+        <div class="pm-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:#34d399;margin-right:2px"></div>${isKo?'좋음 ≤15':'Good ≤15'}</div>
+        <div class="pm-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:#fbbf24;margin-right:2px"></div>${isKo?'보통 ≤35':'Mod ≤35'}</div>
+        <div class="pm-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:#f97316;margin-right:2px"></div>${isKo?'나쁨 ≤75':'Bad ≤75'}</div>
+        <div class="pm-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:#f87171;margin-right:2px"></div>${isKo?'매우나쁨 >75':'VBad >75'}</div>
+      </div>
+    </div>\`;
+  })()}
 
   <!-- 시간별 예보 -->
   <div class="card" style="margin-bottom:20px">
@@ -1782,10 +1907,14 @@ function render(w,aq,n,e,f,model,w30){
     drawPrecipChart('precipChart', chartTimes, chartProbs, chartTemps);
     drawSunArc(d.sunrise?.[0], d.sunset?.[0], now);
     drawWeeklyChart('weeklyChart', d);
+    if(aq&&aq.hourly) drawPmChart('pmChart', aq.hourly, now);
   });
 
   // 30일 캘린더 삽입 (render 직후)
   renderCalendar(w, w30);
+
+  // 알림 배너 업데이트
+  updateAlertBanner(w, aq);
 }
 
 
@@ -1889,8 +2018,8 @@ function buildCalendar() {
       const pp = dayData.pp;
       const ppBar = pp != null ? `<div class="cal-precip-bar"><div class="cal-precip-fill" style="width:${pp}%"></div></div>` : '';
       const ppLabel = pp != null && pp > 0 ? `<span class="cal-pp">${pp}%</span>` : '';
-      const hiDisplay = dispTemp(dayData.hi);
-      const loDisplay = dispTemp(dayData.lo);
+      const hiDisplay = dayData.hi != null ? dispTemp(dayData.hi) : '--';
+      const loDisplay = dayData.lo != null ? dispTemp(dayData.lo) : '--';
 
       html += `<div class="${cls}">
         <div class="cal-day-num" style="${numColor}">${day}</div>
@@ -2258,6 +2387,142 @@ window.addEventListener('load',()=>{
 
 
 
+
+// ══════════════════════════════════════════════════════════
+// 🌙 다크/라이트 테마 토글
+// ══════════════════════════════════════════════════════════
+let isLight = false;
+function toggleTheme(){
+  isLight = !isLight;
+  document.body.classList.toggle('light-mode', isLight);
+  document.getElementById('themeBtn').textContent = isLight ? '🌙' : '☀️';
+  try{ localStorage.setItem('hwang_theme', isLight?'light':'dark'); }catch(e){}
+}
+(function initTheme(){
+  try{
+    const saved = localStorage.getItem('hwang_theme');
+    if(saved === 'light'){ isLight=true; document.body.classList.add('light-mode'); document.getElementById('themeBtn').textContent='🌙'; }
+  }catch(e){}
+})();
+
+// ══════════════════════════════════════════════════════════
+// 🔔 알림 배너 업데이트
+// ══════════════════════════════════════════════════════════
+function updateAlertBanner(w, aq){
+  const banner = document.getElementById('alertBanner');
+  if(!banner) return;
+  const isKo = LANG === 'ko';
+  const d = w?.daily;
+  const c = w?.current;
+  const badges = [];
+
+  // 내일 강수 확률 ≥ 50%
+  const tmrPP = d?.precipitation_probability_max?.[1] ?? null;
+  if(tmrPP != null && tmrPP >= 50)
+    badges.push(`<span class="alert-badge rain">🌧 ${isKo?'내일 비':'Rain tmr'} ${tmrPP}%</span>`);
+
+  // 오늘 UV ≥ 7
+  if((c?.uv_index||0) >= 7)
+    badges.push(`<span class="alert-badge uv">🕶 ${isKo?'자외선 강함':'High UV'} ${c.uv_index}</span>`);
+
+  // 현재 기온 ≥ 33
+  if((c?.temperature_2m||0) >= 33)
+    badges.push(`<span class="alert-badge heat">🔥 ${isKo?'폭염 주의':'Heat Warning'}</span>`);
+
+  // 현재 기온 ≤ 0
+  if((c?.temperature_2m??1) <= 0)
+    badges.push(`<span class="alert-badge cold">🧊 ${isKo?'결빙 주의':'Ice Risk'}</span>`);
+
+  // PM2.5 나쁨 이상 (>35)
+  const pm25 = aq?.current?.pm2_5 ?? null;
+  if(pm25 != null && pm25 > 35)
+    badges.push(`<span class="alert-badge dust">💨 PM2.5 ${pm25.toFixed(0)}㎍ ${isKo?'나쁨':'Bad'}</span>`);
+
+  // 강풍 ≥ 40
+  if((c?.wind_speed_10m||0) >= 40)
+    badges.push(`<span class="alert-badge rain">💨 ${isKo?'강풍 주의':'Strong Wind'}</span>`);
+
+  if(badges.length){
+    banner.innerHTML = `<span class="alert-banner-label">⚠ ${isKo?'오늘의 알림':'Today'}</span>` + badges.join('');
+    banner.classList.remove('hidden');
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// 💨 PM2.5 시간별 차트
+// ══════════════════════════════════════════════════════════
+function drawPmChart(canvasId, aqHourly, now){
+  const canvas = document.getElementById(canvasId);
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  canvas.width = W * window.devicePixelRatio;
+  canvas.height = H * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  ctx.clearRect(0,0,W,H);
+
+  // 현재 이후 48시간 데이터 추출
+  const pmTimes=[], pmVals=[];
+  (aqHourly.time||[]).forEach((ts,i)=>{
+    const hd = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(ts)?new Date(ts+':00'):new Date(ts);
+    if(hd >= now-3600000 && pmTimes.length < 48){
+      pmTimes.push(ts);
+      pmVals.push(aqHourly.pm2_5?.[i] ?? null);
+    }
+  });
+  const n = pmTimes.length;
+  if(n < 2) return;
+
+  const PAD={top:14,right:16,bottom:28,left:36};
+  const cW=W-PAD.left-PAD.right, cH=H-PAD.top-PAD.bottom;
+  const validVals = pmVals.filter(v=>v!=null);
+  if(!validVals.length) return;
+  const maxV = Math.max(...validVals, 75);
+  const thresholds = [{v:15,col:'rgba(52,211,153,'},{v:35,col:'rgba(251,191,36,'},{v:75,col:'rgba(249,115,22,'},{v:999,col:'rgba(248,113,113,'}];
+
+  // 배경 구역 (등급별 색상 띠)
+  const zones=[{lo:0,hi:15,col:'rgba(52,211,153,.04)'},{lo:15,hi:35,col:'rgba(251,191,36,.04)'},{lo:35,hi:75,col:'rgba(249,115,22,.05)'},{lo:75,hi:maxV+10,col:'rgba(248,113,113,.06)'}];
+  zones.forEach(z=>{
+    const y1=PAD.top+cH*(1-Math.min(z.hi,maxV)/maxV);
+    const y2=PAD.top+cH*(1-z.lo/maxV);
+    ctx.fillStyle=z.col; ctx.fillRect(PAD.left,y1,cW,y2-y1);
+  });
+
+  // 기준선
+  [15,35,75].forEach(v=>{
+    if(v>maxV) return;
+    const y=PAD.top+cH*(1-v/maxV);
+    ctx.strokeStyle='rgba(255,255,255,0.07)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(PAD.left,y);ctx.lineTo(PAD.left+cW,y);ctx.stroke();
+    ctx.fillStyle='rgba(90,100,120,0.8)';ctx.font='9px DM Mono';ctx.textAlign='right';
+    ctx.fillText(v, PAD.left-4, y+3);
+  });
+
+  // 막대 + 색상
+  const barW = cW/n*0.7;
+  pmVals.forEach((v,i)=>{
+    if(v==null) return;
+    const x = PAD.left+(i/n)*cW+(cW/n*0.15);
+    const bH = (v/maxV)*cH;
+    const y = PAD.top+cH-bH;
+    const col = v<=15?'rgba(52,211,153,0.75)':v<=35?'rgba(251,191,36,0.75)':v<=75?'rgba(249,115,22,0.75)':'rgba(248,113,113,0.75)';
+    ctx.fillStyle=col;
+    ctx.beginPath();
+    ctx.roundRect?ctx.roundRect(x,y,barW,bH,2):ctx.rect(x,y,barW,bH);
+    ctx.fill();
+  });
+
+  // X축 레이블 (6시간마다)
+  ctx.fillStyle='rgba(90,100,120,0.9)';ctx.font='9px DM Mono';ctx.textAlign='center';
+  for(let i=0;i<n;i+=6){
+    const x=PAD.left+(i/n)*cW+(cW/n)*0.5;
+    const ts=pmTimes[i];
+    const hd=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(ts)?new Date(ts+':00'):new Date(ts);
+    ctx.fillText(hd.getHours()+'시', x, PAD.top+cH+16);
+  }
+}
 </script>
 </body>
 </html>
