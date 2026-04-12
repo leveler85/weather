@@ -1485,8 +1485,8 @@ async function loadWeather(la,lo,n,e,f){
     ? `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,precipitation&timezone=auto&models=best_match`
     : null;
   const wForecastURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
-    +`&hourly=temperature_2m,apparent_temperature,weather_code,precipitation_probability,uv_index`
-    +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max`
+    +`&hourly=temperature_2m,apparent_temperature,weather_code,precipitation_probability,uv_index,precipitation`
+    +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max,precipitation_sum`
     +`&timezone=auto&forecast_days=7&models=best_match`;
   const aqURL = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&hourly=pm10,pm2_5,nitrogen_dioxide&timezone=auto&forecast_days=2`;
 
@@ -1514,8 +1514,8 @@ async function loadWeather(la,lo,n,e,f){
       if(!wf.error){
         if(wf.hourly) w.hourly=wf.hourly;
         if(wf.daily)  w.daily=wf.daily;
-        // uv_index: best_match hourly에서 추출 (KMA/JMA 모두 current 미지원)
-        if(w.current && w.current.uv_index==null){
+        // uv_index: best_match hourly에서 항상 추출 (전 모델 current 미지원)
+        if(w.current){
           const uvNow=new Date(); let uvIdx=0, uvDiff=Infinity;
           (wf.hourly?.time||[]).forEach((ts2,i)=>{
             const t2=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(ts2)?new Date(ts2+':00'):new Date(ts2);
@@ -1897,7 +1897,13 @@ function render(w,aq,n,e,f,model,w30){
             :(uv<=2?'Low':uv<=5?'Mod':uv<=7?'High':uv<=10?'V.High':'Extreme');
           return lv+' '+uv.toFixed(1)+' '+lb;
         })()}</span></div>
-          <div class="detail-item"><span class="detail-label">${t('precip')}</span><span class="detail-val">${c.precipitation!=null?c.precipitation+'mm':'--'}</span></div>
+          <div class="detail-item"><span class="detail-label">${t('precip')}</span><span class="detail-val">${(()=>{
+          const todaySum = d?.precipitation_sum?.[0];
+          const cur = c.precipitation;
+          if(todaySum!=null) return todaySum.toFixed(1)+'mm';
+          if(cur!=null) return cur+'mm';
+          return '--';
+        })()}</span></div>
         </div>
       </div>
     </div>
