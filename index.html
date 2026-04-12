@@ -1514,15 +1514,14 @@ async function loadWeather(la,lo,n,e,f){
       if(!wf.error){
         if(wf.hourly) w.hourly=wf.hourly;
         if(wf.daily)  w.daily=wf.daily;
-        // uv_index: best_match hourly에서 항상 추출 (전 모델 current 미지원)
+        // uv_index: daily uv_index_max[0] 사용 (hourly는 timezone 파싱 문제로 0 반환)
         if(w.current){
-          const uvNow=new Date(); let uvIdx=0, uvDiff=Infinity;
-          (wf.hourly?.time||[]).forEach((ts2,i)=>{
-            const t2=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(ts2)?new Date(ts2+':00'):new Date(ts2);
-            const diff=Math.abs(t2-uvNow);
-            if(diff<uvDiff){uvDiff=diff;uvIdx=i;}
-          });
-          w.current.uv_index = wf.hourly?.uv_index?.[uvIdx] ?? null;
+          const uvMax = wf.daily?.uv_index_max?.[0] ?? null;
+          // 낮 시간(6~18시)이면 max값, 야간이면 0으로 표시
+          const nowHour = new Date().getHours();
+          w.current.uv_index = (uvMax != null)
+            ? (nowHour >= 6 && nowHour < 20 ? uvMax : 0)
+            : null;
         }
       }
     }
