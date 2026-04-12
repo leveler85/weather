@@ -1473,11 +1473,17 @@ async function loadWeather(la,lo,n,e,f){
   else if(isJapan(la,lo)) model='jma_seamless';
   else model='best_match';
 
-  // current: 선택 모델 (KMA/JMA 우선, 현재 날씨 정확도 높음)
-  // daily + hourly: best_match 고정 (KMA/JMA는 daily/hourly temperature 값을 null로 반환하는 문제)
-  const wURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
-    +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,precipitation`
-    +`&timezone=auto&models=${model}`;
+  // ── current 전략 (KMA/JMA 완전 재설계) ──
+  // KMA/JMA: weather_code만 신뢰할 수 있음 → weather_code 전용 요청
+  // 수치(기온/바람/기압 등): best_match current로 별도 요청 후 병합
+  // 해외(best_match): 한 번에 전부 요청
+  const isLocalModel = (model === 'kma_seamless' || model === 'jma_seamless');
+  const wURL = isLocalModel
+    ? `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=weather_code&timezone=auto&models=${model}`
+    : `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,precipitation&timezone=auto&models=best_match`;
+  const wNumericalURL = isLocalModel
+    ? `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,precipitation&timezone=auto&models=best_match`
+    : null;
   const wForecastURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
     +`&hourly=temperature_2m,apparent_temperature,weather_code,precipitation_probability,uv_index`
     +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max`
@@ -1485,62 +1491,38 @@ async function loadWeather(la,lo,n,e,f){
   const aqURL = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&hourly=pm10,pm2_5,nitrogen_dioxide&timezone=auto&forecast_days=2`;
 
   try{
-    const[wRes,wForecastRes,aqRes]=await Promise.all([
+    const[wRes,wForecastRes,aqRes,wNumRes]=await Promise.all([
       fetch(wURL,{cache:'no-store'}).catch(err=>{throw new Error('날씨 API 연결 실패: '+err.message)}),
       fetch(wForecastURL,{cache:'no-store'}).catch(()=>null),
-      fetch(aqURL,{cache:'no-store'}).catch(()=>null)
+      fetch(aqURL,{cache:'no-store'}).catch(()=>null),
+      wNumericalURL ? fetch(wNumericalURL,{cache:'no-store'}).catch(()=>null) : Promise.resolve(null)
     ]);
     if(!wRes.ok) throw new Error(`날씨 API 오류 (HTTP ${wRes.status})`);
     const w=await wRes.json();
+    // KMA/JMA: best_match numerical 데이터를 current에 병합
+    if(isLocalModel && wNumRes && wNumRes.ok){
+      const wNum = await wNumRes.json();
+      if(!wNum.error && wNum.current){
+        // weather_code는 KMA값 유지, 나머지 수치는 best_match로 교체
+        const kmaCode = w.current?.weather_code;
+        w.current = { ...wNum.current, weather_code: kmaCode ?? wNum.current.weather_code };
+      }
+    }
     // hourly + daily 병합: best_match에서 가져온 예보 데이터를 w에 주입
     if(wForecastRes&&wForecastRes.ok){
       const wf=await wForecastRes.json();
       if(!wf.error){
         if(wf.hourly) w.hourly=wf.hourly;
         if(wf.daily)  w.daily=wf.daily;
-        // KMA/JMA current null 보완: 일부 변수가 null/0으로 오는 경우 best_match로 폴백
-        if(w.current){
-          // uv_index: best_match hourly에서 추출
-          if(w.current.uv_index==null){
-            const uvNow=new Date(); let uvIdx=0, uvDiff=Infinity;
-            (wf.hourly?.time||[]).forEach((ts2,i)=>{
-              const t2=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(ts2)?new Date(ts2+':00'):new Date(ts2);
-              const diff=Math.abs(t2-uvNow);
-              if(diff<uvDiff){uvDiff=diff;uvIdx=i;}
-            });
-            w.current.uv_index = wf.hourly?.uv_index?.[uvIdx] ?? null;
-          }
-          // humidity/precipitation/temperature/wind/pressure/visibility null → best_match current로 보완
-          const needsH  = w.current.relative_humidity_2m == null;
-          const needsP  = w.current.precipitation == null;
-          const needsT  = w.current.temperature_2m == null || w.current.temperature_2m === 0;
-          const needsA  = w.current.apparent_temperature == null;
-          const needsWS = w.current.wind_speed_10m == null || w.current.wind_speed_10m === 0;
-          const needsWD = w.current.wind_direction_10m == null;
-          const needsVis= w.current.visibility == null || w.current.visibility === 0;
-          const needsPr = w.current.pressure_msl == null || w.current.pressure_msl === 0;
-          if(needsH || needsP || needsT || needsA || needsWS || needsWD || needsVis || needsPr){
-            try{
-              const bRes = await fetch(
-                `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
-                +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation`
-                +`,wind_speed_10m,wind_direction_10m,visibility,pressure_msl`
-                +`&timezone=auto&models=best_match`,{cache:'no-store'});
-              if(bRes.ok){
-                const bw=await bRes.json();
-                if(!bw.error&&bw.current){
-                  if(needsT)  w.current.temperature_2m      = bw.current.temperature_2m      ?? w.current.temperature_2m;
-                  if(needsA)  w.current.apparent_temperature = bw.current.apparent_temperature ?? w.current.apparent_temperature;
-                  if(needsH)  w.current.relative_humidity_2m = bw.current.relative_humidity_2m ?? null;
-                  if(needsP)  w.current.precipitation        = bw.current.precipitation        ?? 0;
-                  if(needsWS) w.current.wind_speed_10m       = bw.current.wind_speed_10m       ?? 0;
-                  if(needsWD) w.current.wind_direction_10m   = bw.current.wind_direction_10m   ?? 0;
-                  if(needsVis)w.current.visibility            = bw.current.visibility            ?? null;
-                  if(needsPr) w.current.pressure_msl         = bw.current.pressure_msl         ?? null;
-                }
-              }
-            }catch(bErr){console.warn('best_match current 보완 실패:',bErr);}
-          }
+        // uv_index: best_match hourly에서 추출 (KMA/JMA 모두 current 미지원)
+        if(w.current && w.current.uv_index==null){
+          const uvNow=new Date(); let uvIdx=0, uvDiff=Infinity;
+          (wf.hourly?.time||[]).forEach((ts2,i)=>{
+            const t2=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(ts2)?new Date(ts2+':00'):new Date(ts2);
+            const diff=Math.abs(t2-uvNow);
+            if(diff<uvDiff){uvDiff=diff;uvIdx=i;}
+          });
+          w.current.uv_index = wf.hourly?.uv_index?.[uvIdx] ?? null;
         }
       }
     }
