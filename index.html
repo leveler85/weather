@@ -1123,8 +1123,9 @@ function drawPrecipChart(canvasId, hours, probs, temps){
   ctx.font='9px DM Mono';ctx.textAlign='center';
   for(let i=0;i<n;i+=6){
     const x = PAD.left + (i/n)*chartW + (chartW/n)*0.5;
-    const h = new Date(hours[i]);
-    ctx.fillText(h.getHours()+'시', x, PAD.top+chartH+16);
+    const hs = hours[i];
+    const hd = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(hs)?new Date(hs+':00'):new Date(hs);
+    ctx.fillText(hd.getHours()+'시', x, PAD.top+chartH+16);
   }
 }
 
@@ -1400,7 +1401,7 @@ function calcAQI(pm25){
   return{v:Math.round(150+(pm25-55.4)/100*100),l:levels.vbad,lk:'vbad',col:'#f87171'};
 }
 
-function fmtTime(ts){if(!ts)return'--';return new Date(ts).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}
+function fmtTime(ts){if(!ts)return'--';const d=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(ts)?new Date(ts+':00'):new Date(ts);return d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}
 
 // 섭씨 ↔ 화씨 토글
 let useFahrenheit = false;
@@ -1429,17 +1430,29 @@ function render(w,aq,n,e,f,model,w30){
   // 날짜 포맷
   const dateStr = now.toLocaleDateString(LANG==='ko'?'ko-KR':'en-US',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
 
+  // ── 시간 문자열 파싱 헬퍼: "2026-04-12T22:00" → 로컬시간 기준 Date
+  // Open-Meteo는 timezone=auto 로 로컬 시간 문자열을 반환하지만
+  // new Date("...T22:00") 은 브라우저가 UTC로 파싱해 KST와 9시간 어긋남
+  // → 뒤에 :00 을 붙여 로컬시간으로 강제 파싱
+  function parseLocalTime(s){
+    if(!s) return new Date(NaN);
+    // "YYYY-MM-DDTHH:MM" 형태면 초 추가해 로컬로 파싱
+    if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) return new Date(s+':00');
+    return new Date(s);
+  }
+
   // 시간별 (24h)
   const hourHTML=[];
   for(let i=0;i<h.time.length&&hourHTML.length<24;i++){
-    const hd=new Date(h.time[i]);
+    const hd=parseLocalTime(h.time[i]);
     if(hd>=now-3600000){
       const isNow=Math.abs(hd-now)<3600000;
       const pp=h.precipitation_probability?.[i]||0;
+      const ht=h.temperature_2m[i];
       hourHTML.push(`<div class="hour-item${isNow?' now':''}">
         <span class="hour-time">${hd.getHours().toString().padStart(2,'0')}${LANG==='ko'?'시':'h'}</span>
         <span class="hour-icon">${ICO[h.weather_code[i]]||'🌡️'}</span>
-        <span class="hour-temp">${dispTemp(h.temperature_2m[i])}°</span>
+        <span class="hour-temp">${ht!=null?dispTemp(ht)+'°':'--'}</span>
         ${pp>0?`<span class="hour-precip">${pp}%</span>`:''}
       </div>`);
     }
@@ -1448,11 +1461,11 @@ function render(w,aq,n,e,f,model,w30){
   // 강수 차트 데이터 (48h)
   const chartTimes=[], chartProbs=[], chartTemps=[];
   for(let i=0;i<h.time.length&&chartTimes.length<48;i++){
-    const hd=new Date(h.time[i]);
+    const hd=parseLocalTime(h.time[i]);
     if(hd>=now-3600000){
       chartTimes.push(h.time[i]);
       chartProbs.push(h.precipitation_probability?.[i]||0);
-      chartTemps.push(h.temperature_2m[i]);
+      chartTemps.push(h.temperature_2m[i]??null);
     }
   }
 
@@ -1905,9 +1918,10 @@ function genBriefing(c, d, h, now) {
   const loDay = Math.round(d.temperature_2m_min[0]);
 
   // 오늘 오후(12~20시) 최대 강수 확률 탐색
+  function parseLocalBrief(s){if(!s)return new Date(NaN);if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s))return new Date(s+':00');return new Date(s);}
   let pmRainPct = 0;
   (h.time || []).forEach((ts, i) => {
-    const hd = new Date(ts);
+    const hd = parseLocalBrief(ts);
     if (hd.toDateString() === now.toDateString() && hd.getHours() >= 12 && hd.getHours() <= 20) {
       const pp = h.precipitation_probability?.[i] || 0;
       if (pp > pmRainPct) pmRainPct = pp;
@@ -1984,8 +1998,9 @@ function drawSunArc(sunriseStr, sunsetStr, now) {
     return;
   }
 
-  const sunrise = new Date(sunriseStr);
-  const sunset  = new Date(sunsetStr);
+  function parseLocalArc(s){if(!s)return new Date(NaN);if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s))return new Date(s+':00');return new Date(s);}
+  const sunrise = parseLocalArc(sunriseStr);
+  const sunset  = parseLocalArc(sunsetStr);
   const total   = sunset - sunrise;
   const elapsed = now  - sunrise;
   const ratio   = Math.max(0, Math.min(1, elapsed / total));
