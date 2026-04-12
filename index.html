@@ -447,6 +447,10 @@ body.wx-clear   .main-card::before{background:linear-gradient(90deg,transparent,
   .sun-arc-wrap{padding:0 4px}
   .detail-grid{grid-template-columns:1fr 1fr}
   .fav-chip{font-size:.68rem;padding:5px 8px}
+  .lang-btn{display:none}
+  .theme-btn{padding:7px 14px;font-size:.9rem}
+  .compare-btn span{display:none}
+  .compare-btn::before{content:'⊞'}
   
   .app{padding:12px 10px}
   .header-right{width:100%;justify-content:flex-end}
@@ -718,6 +722,37 @@ body.light-mode .fav-chip{background:#fff;border-color:rgba(0,0,0,0.1);color:#1a
 .pm-chart-wrap{position:relative;height:100px;margin-top:8px}
 .pm-legend{display:flex;gap:14px;margin-top:6px;flex-wrap:wrap}
 .pm-legend-item{display:flex;align-items:center;gap:5px;font-size:.7rem;color:var(--muted)}
+
+/* ── PM 상세 카드 ── */
+.pm-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 8px}
+.pm-card{
+  border-radius:12px;padding:14px 16px;
+  border:1px solid var(--border);
+  position:relative;overflow:hidden;
+  transition:transform .2s;
+}
+.pm-card:hover{transform:translateY(-2px)}
+.pm-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.pm-card-name{font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);font-weight:600}
+.pm-card-badge{font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.04em}
+.pm-card-value{font-family:'DM Serif Display',serif;font-size:2rem;line-height:1;font-weight:900}
+.pm-card-unit{font-size:.62rem;color:rgba(255,255,255,.5);margin-top:2px}
+.pm-card-desc{font-size:.7rem;line-height:1.6;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.pm-card-desc strong{display:block;font-size:.72rem;margin-bottom:2px}
+.pm-card-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.1);margin-top:10px;overflow:hidden}
+.pm-card-bar-fill{height:100%;border-radius:2px;transition:width .7s cubic-bezier(.4,0,.2,1)}
+.pm-card-scale{display:flex;justify-content:space-between;font-size:.54rem;color:rgba(255,255,255,.3);margin-top:3px}
+.no2-row{display:flex;align-items:center;gap:12px;padding:10px 16px;
+  background:rgba(167,139,250,.06);border-radius:10px;
+  border:1px solid rgba(167,139,250,.15);margin-top:4px}
+.no2-label{font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.no2-value{font-size:1rem;font-weight:700;color:#a78bfa;font-family:'DM Serif Display',serif}
+.no2-badge{font-size:.62rem;padding:2px 8px;border-radius:8px;background:rgba(167,139,250,.15);color:#c4b5fd;font-weight:600}
+.no2-desc{font-size:.68rem;color:var(--muted);margin-left:auto}
+@media(max-width:480px){
+  .pm-cards{grid-template-columns:1fr}
+  .pm-card-value{font-size:1.6rem}
+}
 </style>
 </head>
 <body class="wx-cloudy">
@@ -1508,6 +1543,27 @@ function calcAQI(pm25){
   return{v:Math.round(150+(pm25-55.4)/100*100),l:levels.vbad,lk:'vbad',col:'#f87171'};
 }
 
+// ── PM 등급 계산 ──
+function pmGrade(pm25, pm10, isKo){
+  // PM2.5 기준 (WHO/한국 환경부)
+  function gradeByPm25(v){
+    if(v==null) return null;
+    if(v<=15)  return {lk:'good',    col:'#34d399', bg:'rgba(52,211,153,.12)',  border:'rgba(52,211,153,.3)',  ko:'좋음',  en:'Good',     tip_ko:'야외 활동하기 좋은 날입니다',       tip_en:'Great day for outdoor activities'};
+    if(v<=35)  return {lk:'moderate',col:'#fbbf24', bg:'rgba(251,191,36,.12)', border:'rgba(251,191,36,.3)',  ko:'보통',  en:'Moderate', tip_ko:'민감군은 장시간 야외 활동 주의',     tip_en:'Sensitive groups should limit outdoor time'};
+    if(v<=75)  return {lk:'bad',     col:'#f97316', bg:'rgba(249,115,22,.12)', border:'rgba(249,115,22,.3)',  ko:'나쁨',  en:'Bad',      tip_ko:'마스크 착용 권장, 환기 줄이세요',    tip_en:'Wear a mask, reduce ventilation'};
+    return       {lk:'vbad',   col:'#f87171', bg:'rgba(248,113,113,.12)',border:'rgba(248,113,113,.3)', ko:'매우나쁨',en:'Very Bad', tip_ko:'외출 자제, KF94 마스크 필수',       tip_en:'Avoid going out, wear KF94 mask'};
+  }
+  // PM10 기준 (한국 환경부)
+  function gradeByPm10(v){
+    if(v==null) return null;
+    if(v<=30)  return {lk:'good',    col:'#34d399', bg:'rgba(52,211,153,.12)',  border:'rgba(52,211,153,.3)',  ko:'좋음',  en:'Good'};
+    if(v<=80)  return {lk:'moderate',col:'#fbbf24', bg:'rgba(251,191,36,.12)', border:'rgba(251,191,36,.3)',  ko:'보통',  en:'Moderate'};
+    if(v<=150) return {lk:'bad',     col:'#f97316', bg:'rgba(249,115,22,.12)', border:'rgba(249,115,22,.3)',  ko:'나쁨',  en:'Bad'};
+    return       {lk:'vbad',   col:'#f87171', bg:'rgba(248,113,113,.12)',border:'rgba(248,113,113,.3)', ko:'매우나쁨',en:'Very Bad'};
+  }
+  return { pm25: gradeByPm25(pm25), pm10: gradeByPm10(pm10) };
+}
+
 function fmtTime(ts){if(!ts)return'--';const d=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(ts)?new Date(ts+':00'):new Date(ts);return d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}
 
 // 섭씨 ↔ 화씨 토글
@@ -1624,6 +1680,67 @@ function render(w,aq,n,e,f,model,w30){
   // 옷차림
   const outfit=getOutfit(c.temperature_2m, c.weather_code, c.relative_humidity_2m, c.wind_speed_10m);
 
+  // ── PM 상세 카드 HTML (중첩 backtick 방지: 문자열 연결 방식) ──
+  const pmDetailHTML = (()=>{
+    if(!pm25 && !pm10) return '';
+    const isKo2 = LANG==='ko';
+    const pg = pmGrade(pm25, pm10, isKo2);
+    const g25 = pg.pm25, g10 = pg.pm10;
+
+    // 등급별 색상/배경 팔레트
+    const colMap = {good:'#34d399',moderate:'#fbbf24',bad:'#f97316',vbad:'#f87171'};
+    const bgMap  = {good:'rgba(52,211,153,.1)',moderate:'rgba(251,191,36,.1)',bad:'rgba(249,115,22,.1)',vbad:'rgba(248,113,113,.1)'};
+    const brMap  = {good:'rgba(52,211,153,.28)',moderate:'rgba(251,191,36,.28)',bad:'rgba(249,115,22,.28)',vbad:'rgba(248,113,113,.28)'};
+
+    function makeCard(type, val, grade, maxVal, scaleArr, descHtml, tipText){
+      if(!grade) return '';
+      const col = grade.col, bg = grade.bg, br = grade.border;
+      const pct = Math.min((val||0)/maxVal*100, 100).toFixed(1);
+      const badgeTxt = isKo2 ? grade.ko : grade.en;
+      const typeTxt  = type==='pm25' ? (isKo2?'초미세먼지 PM2.5':'Fine Dust PM2.5') : (isKo2?'미세먼지 PM10':'Coarse Dust PM10');
+      const stdTxt   = isKo2?'한국 환경부 기준':'KME Standard';
+      const scaleHtml = scaleArr.map(s=>'<span>'+s+'</span>').join('');
+      return '<div class="pm-card" style="background:'+bg+';border-color:'+br+'">'
+        +'<div class="pm-card-top">'
+        +'<span class="pm-card-name">'+typeTxt+'</span>'
+        +'<span class="pm-card-badge" style="background:'+col+'22;color:'+col+';border:1px solid '+col+'44">'+badgeTxt+'</span>'
+        +'</div>'
+        +'<div class="pm-card-value" style="color:'+col+'">'+(val!=null?val.toFixed(1):'--')+'</div>'
+        +'<div class="pm-card-unit">μg/m³ · '+stdTxt+'</div>'
+        +'<div class="pm-card-bar"><div class="pm-card-bar-fill" style="width:'+pct+'%;background:'+col+'"></div></div>'
+        +'<div class="pm-card-scale">'+scaleHtml+'</div>'
+        +'<div class="pm-card-desc">'+descHtml+' '+tipText+'</div>'
+        +'</div>';
+    }
+
+    const scale25_ko = ['좋음~15','보통~35','나쁨~75','매우나쁨'];
+    const scale10_ko = ['좋음~30','보통~80','나쁨~150','매우나쁨'];
+    const scale25_en = ['Good≤15','Mod≤35','Bad≤75','V.Bad'];
+    const scale10_en = ['Good≤30','Mod≤80','Bad≤150','V.Bad'];
+
+    const desc25 = isKo2
+      ? '<strong>초미세먼지 (PM2.5)</strong> 머리카락의 1/20 크기. 폐포→혈액까지 침투.'
+      : '<strong>Fine Dust (PM2.5)</strong> 1/20 of a hair. Enters lungs and bloodstream.';
+    const desc10 = isKo2
+      ? '<strong>미세먼지 (PM10)</strong> 머리카락의 1/5 크기. 코·기관지에서 일부 걸러짐.'
+      : '<strong>Coarse Dust (PM10)</strong> 1/5 of a hair. Partly filtered by nose/throat.';
+    const tip25  = g25 ? (isKo2 ? g25.tip_ko : g25.tip_en) : '';
+
+    const c25 = makeCard('pm25', pm25, g25, 150, isKo2?scale25_ko:scale25_en, desc25, tip25);
+    const c10 = makeCard('pm10', pm10, g10, 300, isKo2?scale10_ko:scale10_en, desc10, '');
+
+    const no2Row = no2!=null
+      ? '<div class="no2-row">'
+        +'<span class="no2-label">NO₂ '+(isKo2?'이산화질소':'Nitrogen Dioxide')+'</span>'
+        +'<span class="no2-value">'+no2.toFixed(1)+'</span>'
+        +'<span class="no2-badge">μg/m³</span>'
+        +'<span class="no2-desc">'+(isKo2?'자동차·산업 매연 지표':'Vehicle & industrial emissions')+'</span>'
+        +'</div>'
+      : '';
+
+    return '<div class="pm-cards">'+c25+c10+'</div>'+no2Row;
+  })();
+
   // PM 차트 카드 HTML (중첩 backtick 방지용 사전 생성)
   const pmCardHTML = (aq&&aq.hourly&&aq.hourly.pm2_5) ? (
     '<div class="card" style="margin-bottom:20px">'
@@ -1729,14 +1846,7 @@ function render(w,aq,n,e,f,model,w30){
           </div>
           <div class="aqi-right">
             <div class="aqi-right-desc">${t('aqiDesc')[aqi.lk]||''}</div>
-            <div class="aqi-bar-wrap">
-              <div class="aqi-bar-label"><span>PM2.5</span><span style="color:${aqi.col};font-weight:700">${pm25?.toFixed(1)??'--'} μg/m³</span></div>
-              <div class="aqi-bar-track"><div class="aqi-bar-fill" style="width:${Math.min((pm25||0)/150*100,100)}%;background:${aqi.col}"></div></div>
-              <div class="aqi-bar-label" style="margin-top:6px"><span>PM10</span><span style="font-weight:600">${pm10?.toFixed(1)??'--'} μg/m³</span></div>
-              <div class="aqi-bar-track"><div class="aqi-bar-fill" style="width:${Math.min((pm10||0)/300*100,100)}%;background:#7dd3fc"></div></div>
-              <div class="aqi-bar-label" style="margin-top:6px"><span>NO₂</span><span style="font-weight:600">${no2?.toFixed(1)??'--'} μg/m³</span></div>
-              <div class="aqi-bar-track"><div class="aqi-bar-fill" style="width:${Math.min((no2||0)/200*100,100)}%;background:#a78bfa"></div></div>
-            </div>
+            ${pmDetailHTML}
           </div>
         </div>
         <!-- 중단: 4단계 레벨 스트립 -->
