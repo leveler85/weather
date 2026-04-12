@@ -1272,20 +1272,33 @@ async function loadWeather(la,lo,n,e,f){
   else model='best_match';
 
   const ts = Date.now();
+  // current: 선택 모델 (KMA/JMA 우선, 현재 날씨 정확도 높음)
+  // daily + hourly: best_match 고정 (KMA/JMA는 daily/hourly temperature 값을 null로 반환하는 문제)
   const wURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
     +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,visibility,pressure_msl,uv_index,precipitation`
+    +`&timezone=auto&models=${model}&t=${ts}`;
+  const wForecastURL = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}`
     +`&hourly=temperature_2m,weather_code,precipitation_probability`
     +`&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset`
-    +`&timezone=auto&forecast_days=7&models=${model}&t=${ts}`;
+    +`&timezone=auto&forecast_days=7&models=best_match&t=${ts}`;
   const aqURL = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&current=pm10,pm2_5,nitrogen_dioxide&timezone=auto&t=${ts}`;
 
   try{
-    const[wRes,aqRes]=await Promise.all([
+    const[wRes,wForecastRes,aqRes]=await Promise.all([
       fetch(wURL,{cache:'no-store'}).catch(err=>{throw new Error('날씨 API 연결 실패: '+err.message)}),
+      fetch(wForecastURL,{cache:'no-store'}).catch(()=>null),
       fetch(aqURL,{cache:'no-store'}).catch(()=>null)
     ]);
     if(!wRes.ok) throw new Error(`날씨 API 오류 (HTTP ${wRes.status})`);
     const w=await wRes.json();
+    // hourly + daily 병합: best_match에서 가져온 예보 데이터를 w에 주입
+    if(wForecastRes&&wForecastRes.ok){
+      const wf=await wForecastRes.json();
+      if(!wf.error){
+        if(wf.hourly) w.hourly=wf.hourly;
+        if(wf.daily)  w.daily=wf.daily;
+      }
+    }
     const aq=aqRes&&aqRes.ok?await aqRes.json():null;
     if(w.error) throw new Error('API 응답 오류: '+(w.reason||''));
     // ── 30일 캘린더 데이터 로딩 ──
@@ -1480,8 +1493,8 @@ function render(w,aq,n,e,f,model,w30){
     return`<div class="day-item">
       <span class="day-name">${lb} ${ICO[d.weather_code[i]]||''}</span>
       <div class="day-bar-wrap"><div class="day-bar" style="left:${bl}%;width:${bw}%"></div></div>
-      <span class="day-lo">${dispTemp(lo)}°</span>
-      <span class="day-hi">${dispTemp(hi2)}°</span>
+      <span class="day-lo">${lo!=null?dispTemp(lo)+'°':'--'}</span>
+      <span class="day-hi">${hi2!=null?dispTemp(hi2)+'°':'--'}</span>
     </div>`;
   }).join('');
 
